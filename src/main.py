@@ -1,3 +1,8 @@
+"""
+HEIC Converter CLI
+
+A command-line utility to convert HEIC/HEIF images to JPG or PNG formats.
+"""
 import os
 import sys
 import logging
