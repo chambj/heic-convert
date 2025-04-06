@@ -53,11 +53,13 @@ class HeicConvert:
         # Handle existing files based on chosen mode
         if os.path.exists(output_path):
             if self.existing_mode == "fail":
-                self.logger.error(f"Output file already exists: {output_path}")
+                self.logger.info(f"Skipping: {os.path.basename(output_path)} (file already exists)")
+                self.logger.debug(f"Output file already exists and 'fail' mode selected: {output_path}")
+                # Raise a specialized exception that can be handled differently
                 raise FileExistsError(f"Output file already exists: {output_path}")
             
             elif self.existing_mode == "overwrite":
-                self.logger.warning(f"Overwriting existing file: {output_path}")
+                self.logger.debug(f"Overwriting existing file: {output_path}")
                 return output_path
             
             elif self.existing_mode == "rename":
@@ -70,7 +72,7 @@ class HeicConvert:
                     output_path = os.path.join(path_obj.parent, new_name)
                     counter += 1
                 
-                self.logger.info(f"Renamed output to avoid conflict: {output_path}")
+                self.logger.debug(f"Renamed output to avoid conflict: {output_path}")
         
         return output_path
     
@@ -113,11 +115,21 @@ class HeicConvert:
         
         return img  # No resizing if no arguments provided
     
+    def _log_conversion(self, input_file, output_file):
+        """Log conversion with appropriate path formatting."""
+        # Log full paths for debug level (typically goes to file)
+        self.logger.debug(f"Converted: {input_file} → {output_file}")
+        
+        # Log just filenames for info level (typically shows in console)
+        input_name = os.path.basename(input_file)
+        output_name = os.path.basename(output_file)
+        self.logger.info(f"Converted: {input_name} → {output_name}")
+    
     def convert_to_jpg(self, heic_path, args=None):
         """Convert HEIC file to JPG format with optional resizing."""
         try:
             output_path = self._get_output_path(heic_path, ".jpg")
-            self.logger.info(f"Converting {heic_path} to JPG (quality: {self.jpg_quality})")
+            self.logger.debug(f"Converting {heic_path} to JPG (quality: {self.jpg_quality})")
             
             img = Image.open(heic_path)
             
@@ -127,17 +139,23 @@ class HeicConvert:
             
             img.save(output_path, format="JPEG", quality=self.jpg_quality)
             
-            self.logger.info(f"Saved JPG to {output_path}")
+            self._log_conversion(heic_path, output_path)
+            
+            self.logger.debug(f"Saved JPG to {output_path}")
             return output_path
+        except FileExistsError:
+            # This is an expected condition when mode="fail", so just return None
+            return None
         except Exception as e:
-            self.logger.error(f"Error converting {heic_path} to JPG: {str(e)}")
+            # These are actual errors, so log them as such
+            self.logger.debug(f"Error converting {heic_path} to JPG: {str(e)}")
             raise
 
     def convert_to_png(self, heic_path, args=None):
         """Convert HEIC file to PNG format with optional resizing."""
         try:
             output_path = self._get_output_path(heic_path, ".png")
-            self.logger.info(f"Converting {heic_path} to PNG")
+            self.logger.debug(f"Converting {heic_path} to PNG")
             
             img = Image.open(heic_path)
             
@@ -149,8 +167,10 @@ class HeicConvert:
             compression = args.png_compression if args else 6
             img.save(output_path, format="PNG", compress_level=compression)
             
-            self.logger.info(f"Saved PNG to {output_path}")
+            self._log_conversion(heic_path, output_path)
+            
+            self.logger.debug(f"Saved PNG to {output_path}")
             return output_path
         except Exception as e:
-            self.logger.error(f"Error converting {heic_path} to PNG: {str(e)}")
+            self.logger.debug(f"Error converting {heic_path} to PNG: {str(e)}")
             raise

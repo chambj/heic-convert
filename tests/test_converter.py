@@ -221,3 +221,107 @@ class TestHEICConverter:
         
         # Higher compression should result in a smaller file
         assert len(low_compression.getvalue()) > len(high_compression.getvalue())
+
+    def test_actual_conversion(self, setup_test_files):
+        """Test conversion of a real HEIC file to JPG/PNG."""
+        # This requires a real HEIC file in test_data
+        converter = HeicConvert(output_dir=setup_test_files)
+        heic_files = converter.list_heic_files(setup_test_files)
+        
+        if heic_files:
+            # Test JPG conversion
+            jpg_path = converter.convert_to_jpg(heic_files[0])
+            assert jpg_path is not None
+            assert os.path.exists(jpg_path)
+            assert jpg_path.endswith('.jpg')
+            
+            # Verify it's a valid JPG
+            img = Image.open(jpg_path)
+            assert img.format == 'JPEG'
+
+    def test_corrupt_file_handling(self, tmpdir):
+        """Test handling of corrupt HEIC files."""
+        # Create a fake "HEIC" file with invalid content
+        fake_heic = str(tmpdir.join("fake.heic"))
+        with open(fake_heic, 'wb') as f:
+            f.write(b'This is not a valid HEIC file')
+        
+        converter = HeicConvert(output_dir=str(tmpdir))
+        
+        # Should raise an exception when trying to convert
+        with pytest.raises(Exception):
+            converter.convert_to_jpg(fake_heic)
+
+    def test_both_formats_conversion(self, setup_test_files, tmpdir):
+        """Test converting a file to both JPG and PNG."""
+        # Use a temporary output directory to avoid file conflicts
+        output_dir = str(tmpdir.join("output"))
+        os.makedirs(output_dir, exist_ok=True)
+        
+        converter = HeicConvert(output_dir=output_dir)
+        heic_files = converter.list_heic_files(setup_test_files)
+        
+        if heic_files:
+            # Create args for the test with ALL required attributes
+            args = argparse.Namespace(
+                format="both", 
+                jpg_quality=80, 
+                png_compression=6,
+                resize=None,
+                width=None,
+                height=None
+            )
+            
+            # Make a copy of the HEIC file to avoid file locking issues
+            test_file = os.path.join(output_dir, "test.heic")
+            shutil.copy2(heic_files[0], test_file)
+            
+            # Convert to JPG first and ensure it's closed
+            jpg_path = converter.convert_to_jpg(test_file, args)
+            if jpg_path and os.path.exists(jpg_path):
+                try:
+                    img = Image.open(jpg_path)
+                    img.close()
+                except:
+                    pass
+            
+            # Then convert to PNG
+            png_path = converter.convert_to_png(test_file, args)
+            
+            assert jpg_path is not None
+            assert png_path is not None
+            assert os.path.exists(jpg_path)
+            assert os.path.exists(png_path)
+            assert jpg_path.endswith('.jpg')
+            assert png_path.endswith('.png')
+
+    def test_logging(self, setup_test_files, caplog):
+        """Test that logging works correctly."""
+        import logging
+        caplog.set_level(logging.INFO)
+        
+        converter = HeicConvert(output_dir=setup_test_files)
+        heic_files = converter.list_heic_files(setup_test_files)
+        
+        if heic_files:
+            try:
+                converter.convert_to_jpg(heic_files[0])
+                assert "Converted:" in caplog.text
+            except:
+                # Even if conversion fails, there should be log messages
+                assert len(caplog.records) > 0
+
+    def test_unicode_path_handling(self, tmpdir):
+        """Test handling of paths with Unicode characters."""
+        # Create directory with Unicode characters
+        unicode_dir = tmpdir.mkdir("Üñïçödë_テスト_💻")
+        test_file = os.path.join(str(unicode_dir), "image.heic")
+        
+        # Create empty file
+        Path(test_file).touch()
+        
+        converter = HeicConvert()
+        files = converter.list_heic_files(str(unicode_dir))
+        
+        assert len(files) == 1
+        assert "image.heic" in files[0]

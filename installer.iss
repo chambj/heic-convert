@@ -20,7 +20,7 @@ OutputDir=installer
 OutputBaseFilename=heic-convert-setup
 Compression=lzma
 SolidCompression=yes
-SetupIconFile=heic-convert.ico
+SetupIconFile=resources\heic-convert.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"

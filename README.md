@@ -221,6 +221,19 @@ For more detailed test output:
 pytest -v
 ```
 
+### Running the GUI Tests
+
+These tests can be run with pytest:
+
+```
+pytest tests/test_gui.py -v
+```
+
+- The tests above use mocking to avoid real file dialogs and user interaction
+- The test_conversion_thread_created test verifies that a thread is created but doesn't run it
+- These tests don't verify the visual appearance
+
+
 ## License
 
 This project is licensed under the MIT License - see the LICENSE file for details.
