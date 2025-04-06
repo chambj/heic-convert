@@ -3,7 +3,7 @@ import pytest
 import tempfile
 import shutil
 from pathlib import Path
-from src.converter import HEICConverter
+from src.converter import HeicConvert
 from PIL import Image
 import argparse
 import io
@@ -28,7 +28,7 @@ class TestHEICConverter:
         shutil.rmtree(temp_dir)
     
     def test_list_heic_files(self, setup_test_files):
-        converter = HEICConverter()
+        converter = HeicConvert()
         # Test with empty directory
         empty_dir = tempfile.mkdtemp()
         files = converter.list_heic_files(empty_dir)
@@ -37,7 +37,7 @@ class TestHEICConverter:
     
     def test_list_heic_files_with_content(self, setup_test_files):
         """Test that we can find HEIC files in a directory with content."""
-        converter = HEICConverter()
+        converter = HeicConvert()
         
         # setup_test_files contains copied HEIC files
         files = converter.list_heic_files(setup_test_files)
@@ -47,7 +47,7 @@ class TestHEICConverter:
         assert all(f.lower().endswith(('.heic', '.heif')) for f in files)
         
     def test_get_output_path(self):
-        converter = HEICConverter()
+        converter = HeicConvert()
         test_path = "/test/path/image.heic"
         png_path = converter._get_output_path(test_path, ".png")
         assert png_path.endswith("image.png")
@@ -55,20 +55,20 @@ class TestHEICConverter:
     def test_jpg_quality_validation(self):
         # Test with invalid quality values
         with pytest.raises(ValueError):
-            HEICConverter(jpg_quality=101)
+            HeicConvert(jpg_quality=101)
         with pytest.raises(ValueError):
-            HEICConverter(jpg_quality=0)
+            HeicConvert(jpg_quality=0)
     
     def test_existing_mode_validation(self):
         """Test validation of existing_mode parameter."""
         # Valid modes should work
-        HEICConverter(existing_mode="rename")
-        HEICConverter(existing_mode="overwrite")
-        HEICConverter(existing_mode="fail")
+        HeicConvert(existing_mode="rename")
+        HeicConvert(existing_mode="overwrite")
+        HeicConvert(existing_mode="fail")
         
         # Invalid mode should raise ValueError
         with pytest.raises(ValueError):
-            HEICConverter(existing_mode="invalid_mode")
+            HeicConvert(existing_mode="invalid_mode")
     
     def test_output_path_handling_rename(self, tmpdir):
         """Test rename behavior with existing files."""
@@ -76,7 +76,7 @@ class TestHEICConverter:
         test_file = tmpdir.join("output.png")
         test_file.write("test content")
         
-        converter = HEICConverter(existing_mode="rename")
+        converter = HeicConvert(existing_mode="rename")
         input_path = str(tmpdir.join("input.heic"))
         
         # First call should add the original name
@@ -112,7 +112,7 @@ class TestHEICConverter:
         test_file = tmpdir.join("input.png")
         test_file.write("test content")
         
-        converter = HEICConverter(existing_mode="overwrite")
+        converter = HeicConvert(existing_mode="overwrite")
         input_path = str(tmpdir.join("input.heic"))
         
         # Create the output file to simulate an existing file
@@ -128,7 +128,7 @@ class TestHEICConverter:
         test_file = tmpdir.join("input.png")
         test_file.write("test content")
         
-        converter = HEICConverter(existing_mode="fail")
+        converter = HeicConvert(existing_mode="fail")
         input_path = str(tmpdir.join("input.heic"))
         
         # Create the output file to simulate an existing file
@@ -147,7 +147,7 @@ class TestHEICConverter:
         # Create args with resize=50 (50%)
         args = argparse.Namespace(resize=50, width=None, height=None)
         
-        converter = HEICConverter()
+        converter = HeicConvert()
         resized = converter.resize_image(img, args)
         
         # Should be 50x100 (50% of original)
@@ -162,7 +162,7 @@ class TestHEICConverter:
         # Create args with width=200
         args = argparse.Namespace(resize=None, width=200, height=None)
         
-        converter = HEICConverter()
+        converter = HeicConvert()
         resized = converter.resize_image(img, args)
         
         # Width should be 200, height should be 400 (to maintain aspect ratio)
@@ -177,7 +177,7 @@ class TestHEICConverter:
         # Create args with height=100
         args = argparse.Namespace(resize=None, width=None, height=100)
         
-        converter = HEICConverter()
+        converter = HeicConvert()
         resized = converter.resize_image(img, args)
         
         # Height should be 100, width should be 50 (to maintain aspect ratio)
@@ -193,7 +193,7 @@ class TestHEICConverter:
         # Priority should be: resize > width > height
         args = argparse.Namespace(resize=50, width=200, height=100)
         
-        converter = HEICConverter()
+        converter = HeicConvert()
         resized = converter.resize_image(img, args)
         
         # Should follow resize=50% (50x100)

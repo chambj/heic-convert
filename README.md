@@ -10,7 +10,68 @@ This project is a Python application that scans a specified folder for HEIC imag
 - Size comparison between original and converted files
 - Detailed logging
 
-## Installation
+## Easiest Option - Using the Windows Installer
+
+### Installation
+
+1. Download the latest installer from the [Releases](https://github.com/chambj/heic-convert/releases) page
+2. Run the installer and follow the prompts
+3. Optionally check "Add application to PATH" to use from command line
+
+### Using the Command-line Interface
+
+```
+heic-convert [OPTIONS]
+```
+
+Options:
+- `--folder`, `-f`: Folder path containing HEIC files (required)
+- `--output`, `-o`: Output folder for converted images (optional)
+- `--format`, `-t`: Target format: png, jpg, or both (default: jpg)
+- `--jpg-quality`, `-q`: JPEG quality (1-100, default: 90)
+- `--png-compression`: PNG compression level (0-9, default: 6)
+- `--existing`, `-e`: How to handle existing files: rename (add number), overwrite, or fail (default: fail)
+- `--resize`: Resize image by percentage (e.g., 50 for 50%) (optional)
+- `--width`: Resize image to specific width (maintaining aspect ratio) (optional)
+- `--height`: Resize image to specific height (maintaining aspect ratio) (optional)
+- `--log-file`: File path to store logs in (optional)
+
+
+```
+# Convert all HEIC files in a folder to JPG
+heic-convert --folder "c:\path\to\heics"
+
+# Convert to both formats with 80% JPG quality
+heic-convert --folder "c:\path\to\heics" --format both --jpg-quality 80
+
+# Resize images to 50% of original size
+heic-convert --folder "c:\path\to\heics" --resize 50
+
+# Specify output directory and handle existing files
+heic-convert --folder "c:\path\to\heics" --output "c:\output" --existing rename
+
+# Convert all HEIC files in a folder to PNG
+heic-convert --folder "c:\path\to\heics" --format png
+
+```
+
+### Resizing Options
+
+The converter supports three methods for resizing images:
+
+1. **Percentage resize**: `--resize 50` (reduces to 50% of original dimensions)
+2. **Width-based resize**: `--width 1920` (sets width to 1920px, height scales proportionally)
+3. **Height-based resize**: `--height 1080` (sets height to 1080px, width scales proportionally)
+
+**Note**: If you specify multiple resize options, the following priority will be applied:
+1. Percentage resize (`--resize`)
+2. Width-based resize (`--width`)
+3. Height-based resize (`--height`)
+
+Only one resize option will be applied at a time. Aspect ratio is always preserved.
+
+
+## From Source
 
 ### Setting up a Virtual Environment
 
@@ -48,44 +109,9 @@ Once the virtual environment is activated, install the required packages:
 pip install -r requirements.txt
 ```
 
-## Usage
+### Usage Examples
 
-### Command Line Options
-
-```
-python -m src.main [OPTIONS]
-```
-
-Options:
-- `--folder`, `-f`: Folder path containing HEIC files
-- `--output`, `-o`: Output folder for converted images (optional)
-- `--format`, `-t`: Target format: png, jpg, or both (default: jpg)
-- `--jpg-quality`, `-q`: JPEG quality (1-100, default: 90)
-- `--png-compression`: PNG compression level (0-9, default: 6)
-- `--existing`, `-e`: How to handle existing files: rename (add number), overwrite, or fail (default: fail)
-- `--resize`: Resize image by percentage (e.g., 50 for 50%) (optional)
-- `--width`: Resize image to specific width (maintaining aspect ratio) (optional)
-- `--height`: Resize image to specific height (maintaining aspect ratio) (optional)
-- `--log-file`: File path to store logs in (optional)
-
-### Resizing Options
-
-The converter supports three methods for resizing images:
-
-1. **Percentage resize**: `--resize 50` (reduces to 50% of original dimensions)
-2. **Width-based resize**: `--width 1920` (sets width to 1920px, height scales proportionally)
-3. **Height-based resize**: `--height 1080` (sets height to 1080px, width scales proportionally)
-
-**Note**: If you specify multiple resize options, the following priority will be applied:
-1. Percentage resize (`--resize`)
-2. Width-based resize (`--width`)
-3. Height-based resize (`--height`)
-
-Only one resize option will be applied at a time. Aspect ratio is always preserved.
-
-## Examples
-
-Convert all HEIC files in a folder to both JPG:
+Convert all HEIC files in a folder to JPG:
 ```bash
 python -m src.main --folder "C:\Users\Photos\iPhone"
 ```
@@ -139,6 +165,36 @@ Create a log file while it runs:
 ```bash
 python -m src.main --folder "C:\Users\Photos\iPhone" --log-file "conversion.log"
 ```
+
+## Building from Source
+
+### Prerequisites
+
+- Python 3.7+
+- PyInstaller
+- Inno Setup (for creating installer)
+
+### Build Steps
+
+1. **Install dependencies**
+   ```
+   pip install -r requirements.txt
+   pip install pyinstaller
+   ```
+
+2. **Create executable**
+   ```
+   pyinstaller heic_convert.spec
+   ```
+   
+3. **Create installer** (optional)
+   - Install [Inno Setup](https://jrsoftware.org/isinfo.php)
+   - Open Inno Setup Compiler
+   - Open the `installer.iss` file
+   - Click Build > Compile
+
+The compiled installer will be in the `installer` folder.
+
 
 ## Troubleshooting
 

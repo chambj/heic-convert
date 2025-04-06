@@ -9,7 +9,7 @@ import logging
 import argparse
 from pathlib import Path
 from tqdm import tqdm
-from src.converter import HEICConverter
+from src.converter import HeicConvert  
 from concurrent.futures import ThreadPoolExecutor
 
 # Update the logging configuration
@@ -141,7 +141,7 @@ def main():
         return 1
 
     # Initialize converter
-    heic_converter = HEICConverter(output_dir=args.output, jpg_quality=args.jpg_quality, 
+    heic_converter = HeicConvert(output_dir=args.output, jpg_quality=args.jpg_quality, 
                                    existing_mode=args.existing)
     
     try:

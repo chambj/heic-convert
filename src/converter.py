@@ -8,7 +8,7 @@ import pillow_heif
 # Register HEIF opener with Pillow
 pillow_heif.register_heif_opener()
 
-class HEICConverter:
+class HeicConvert:
     def __init__(self, output_dir=None, jpg_quality=90, existing_mode="rename"):
         """
         Initialize the HEIC converter.
