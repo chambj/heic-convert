@@ -150,7 +150,7 @@ def main():
         return 1
 
     # Initialize converter
-    heic_converter = HeicConvert(output=args.output, jpg_quality=args.jpg_quality, 
+    heic_converter = HeicConvert(output_dir=args.output, jpg_quality=args.jpg_quality, 
                                    existing_mode=args.existing)
     
     try:
