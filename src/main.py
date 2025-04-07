@@ -128,23 +128,20 @@ def main():
         parser.print_help()
         sys.exit("Error: folder is required.")
 
-    # Fix: Handle the case when folder is None
-    #args.folder = os.path.abspath(args.folder)
     
-    # Fix: Handle the case when output_dir is None
-    if args.output_dir is None:
+    if args.output is None:
         # Set default output directory as a subdirectory of the source
-        args.output_dir = os.path.join(args.folder, args.format)
+        args.output = os.path.join(args.folder, args.format)
     else:
         # Only convert to absolute path if not None
-        args.output_dir = os.path.abspath(args.output_dir)
+        args.output = os.path.abspath(args.output)
     
     args = validate_format_arguments(args)
     
     # Log source and output directories
     logger.info(f"Source directory: {os.path.abspath(args.folder)}")
-    if args.output_dir:
-        logger.info(f"Output directory: {os.path.abspath(args.output_dir)}")
+    if args.output:
+        logger.info(f"Output directory: {os.path.abspath(args.output)}")
     logger.info("")  # Empty line for separation
     
     # Validate folder path
@@ -153,7 +150,7 @@ def main():
         return 1
 
     # Initialize converter
-    heic_converter = HeicConvert(output_dir=args.output_dir, jpg_quality=args.jpg_quality, 
+    heic_converter = HeicConvert(output=args.output, jpg_quality=args.jpg_quality, 
                                    existing_mode=args.existing)
     
     try:
