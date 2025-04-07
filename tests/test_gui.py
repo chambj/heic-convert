@@ -1,4 +1,5 @@
 import os
+from src import gui
 import sys
 import pytest
 import tkinter as tk
@@ -45,7 +46,7 @@ class TestHEICConverterGUI:
     @pytest.fixture
     def gui(self, root):
         """Create the GUI instance for testing."""
-        with patch('gui.setup_logging') as mock_setup_logging:
+        with patch('src.gui.setup_logging') as mock_setup_logging:
             mock_logger = MagicMock()
             mock_setup_logging.return_value = mock_logger
             gui = HEICConverterGUI(root)
@@ -155,7 +156,7 @@ class TestHEICConverterGUI:
             gui.log_text.insert(tk.END, log + "\n")
         
         # Clear log
-        with patch('gui.datetime') as mock_datetime:
+        with patch('src.gui.datetime') as mock_datetime:
             # Mock datetime to have stable test
             mock_now = MagicMock()
             mock_now.strftime.return_value = "2025-04-06 12:00:00"
@@ -222,21 +223,21 @@ class TestHEICConverterGUI:
         gui.clear_current_log = MagicMock()
         
         # Fix: Mock datetime directly
-        with patch('gui.datetime') as mock_datetime:
+        with patch('src.gui.datetime') as mock_datetime:
             # Create a proper datetime mock with a 'now' method
             mock_now = MagicMock()
             mock_now.strftime.return_value = "2025-04-06 12:00:00"
             mock_datetime.now.return_value = mock_now
             
             # Now test the conversion with our mocks in place
-            with patch('gui.os.path.isdir', return_value=True):
+            with patch('src.gui.os.path.isdir', return_value=True):
                 gui.start_conversion()
                 
                 # Check thread was created and started
                 mock_thread.assert_called_once()
                 mock_thread.return_value.start.assert_called_once()
     
-    @patch('gui.HeicConvert')
+    @patch('src.gui.HeicConvert')
     def test_convert_files_handles_errors(self, mock_converter, gui, test_files_dir):
         """Test that convert_files handles errors gracefully."""
         # Set up test data
@@ -257,7 +258,7 @@ class TestHEICConverterGUI:
             # Status should be updated
             assert gui.status_var.get() == "Error occurred"
     
-    @patch('gui.threading.Thread')
+    @patch('src.gui.threading.Thread')
     def test_actual_file_conversion(self, mock_thread, gui, test_files_dir):
         """Test actual conversion with real HEIC files from test_data."""
         # Set up the GUI with real directories
@@ -288,8 +289,8 @@ class TestHEICConverterGUI:
         mock_thread.side_effect = mock_thread_init
         
         # Mock the asynchronous thread to run synchronously
-        with patch('gui.os.path.isdir', return_value=True):
-            with patch('gui.datetime', autospec=True) as mock_datetime:
+        with patch('src.gui.os.path.isdir', return_value=True):
+            with patch('src.gui.datetime', autospec=True) as mock_datetime:
                 # Create a proper datetime mock
                 mock_now = MagicMock()
                 mock_now.strftime.return_value = "2025-04-06 12:00:00"
