@@ -11,47 +11,44 @@ from pathlib import Path
 from tqdm import tqdm
 from src.converter import HeicConvert  
 from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime
 
 # Update the logging configuration
-def setup_logging(log_file=None):
-    """
-    Configure logging with different levels for console and file.
+def setup_logging():
+    """Configure logging with different formats for console and file."""
+    logger = logging.getLogger('heic_convert')
+    logger.setLevel(logging.DEBUG)  # Logger itself keeps all messages
     
-    Args:
-        log_file: Path to log file or None to disable file logging
-    """
-    # Create formatters
-    file_formatter = logging.Formatter("%(asctime)s - %(name)s - %(levelname)s - %(message)s")
-    console_formatter = logging.Formatter("%(message)s")
+    # Clear existing handlers
+    for handler in logger.handlers:
+        logger.removeHandler(handler)
     
-    # Configure root logger
-    root_logger = logging.getLogger()
-    root_logger.setLevel(logging.DEBUG)  # Capture everything
+    # Console handler - INFO and above only
+    console_handler = logging.StreamHandler()
+    console_handler.setLevel(logging.INFO)  # Only INFO and above shown on console
+    console_format = logging.Formatter('%(message)s')
+    console_handler.setFormatter(console_format)
+    logger.addHandler(console_handler)
     
-    # Clear any existing handlers (important for repeated calls)
-    for handler in root_logger.handlers[:]:
-        root_logger.removeHandler(handler)
+    # File handler - DEBUG and above
+    log_dir = os.path.join(os.path.expanduser("~"), ".heic_convert", "logs")
+    os.makedirs(log_dir, exist_ok=True)
+    log_file = os.path.join(log_dir, f"heic_convert_{datetime.now().strftime('%Y%m%d_%H%M%S')}.log")
+    file_handler = logging.FileHandler(log_file)
+    file_handler.setLevel(logging.DEBUG)
+    file_format = logging.Formatter('%(asctime)s - %(levelname)s - %(message)s')
+    file_handler.setFormatter(file_format)
+    logger.addHandler(file_handler)
     
-    # Console handler - only INFO and above
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(logging.INFO)
-    console_handler.setFormatter(console_formatter)
-    root_logger.addHandler(console_handler)
+    # Store handlers in logger for later use
+    logger.console_handler = console_handler
+    logger.file_handler = file_handler
     
-    # Add file handler only if a log file is specified
-    if log_file:
-        file_handler = logging.FileHandler(log_file)
-        file_handler.setLevel(logging.DEBUG)
-        file_handler.setFormatter(file_formatter)
-        root_logger.addHandler(file_handler)
-    
-    return logging.getLogger(__name__)
+    return logger
 
 logger = setup_logging()
 
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Convert HEIC images to PNG or JPG")
+def parse_arguments(parser):
     parser.add_argument("--folder", "-f", help="Folder path containing HEIC files")
     parser.add_argument("--output", "-o", help="Output folder for converted images")
     parser.add_argument("--format", "-t", choices=["png", "jpg", "both"], default="jpg",
@@ -65,7 +62,7 @@ def parse_arguments():
     parser.add_argument("--log-file", help="Save logs to specified file (default: no file logging)")
     
     resize_group = parser.add_mutually_exclusive_group()
-    resize_group.add_argument("--resize", type=int, help="Resize image by percentage (e.g., 50 for 50%)")
+    resize_group.add_argument("--resize", type=int, help="Resize image by percentage (e.g., 50 for 50%%)")
     resize_group.add_argument("--width", type=int, help="Resize image to specific width (maintaining aspect ratio)")
     resize_group.add_argument("--height", type=int, help="Resize image to specific height (maintaining aspect ratio)")
     
@@ -103,16 +100,18 @@ def convert_file(heic_file, args, heic_converter):
         if args.format in ["png", "both"]:
             # Pass args to convert_to_png
             png_path = heic_converter.convert_to_png(heic_file, args)
-            png_size = Path(png_path).stat().st_size / (1024 * 1024)
-            logger.debug(f"PNG size: {png_size:.2f} MB")
-            converted_files.append(png_path)
+            if png_path:  # Check if path is not None. It won't be in the case of failure (eg file exists)
+                png_size = Path(png_path).stat().st_size / (1024 * 1024)
+                logger.debug(f"PNG size: {png_size:.2f} MB")
+                converted_files.append(png_path)
         
         if args.format in ["jpg", "both"]:
             # Pass args to convert_to_jpg
             jpg_path = heic_converter.convert_to_jpg(heic_file, args)
-            jpg_size = Path(jpg_path).stat().st_size / (1024 * 1024)
-            logger.debug(f"JPG size: {jpg_size:.2f} MB")
-            converted_files.append(jpg_path)
+            if jpg_path:  # Check if path is not None. It won't be in the case of failure (eg file exists)
+                jpg_size = Path(jpg_path).stat().st_size / (1024 * 1024)
+                logger.debug(f"JPG size: {jpg_size:.2f} MB")
+                converted_files.append(jpg_path)
             
         return converted_files
     
@@ -121,23 +120,33 @@ def convert_file(heic_file, args, heic_converter):
         return []
 
 def main():
-    """Main function to convert HEIC files."""
-    args = parse_arguments()
+    parser = argparse.ArgumentParser(description="Convert HEIC images to PNG or JPG")
+
+    args = parse_arguments(parser)
+
+    if not args.folder:
+        parser.print_help()
+        sys.exit("Error: folder is required.")
+
     
-    # Setup logging - only log to file if specified
-    global logger
-    logger = setup_logging(args.log_file)
+    if args.output is None:
+        # Set default output directory as a subdirectory of the source
+        args.output = os.path.join(args.folder, args.format)
+    else:
+        # Only convert to absolute path if not None
+        args.output = os.path.abspath(args.output)
     
     args = validate_format_arguments(args)
     
-    # Get folder path from arguments or user input
-    folder_path = args.folder
-    if not folder_path:
-        folder_path = input("Enter the folder path to scan for HEIC files: ")
+    # Log source and output directories
+    logger.info(f"Source directory: {os.path.abspath(args.folder)}")
+    if args.output:
+        logger.info(f"Output directory: {os.path.abspath(args.output)}")
+    logger.info("")  # Empty line for separation
     
     # Validate folder path
-    if not os.path.isdir(folder_path):
-        logger.error(f"The specified path '{folder_path}' is not a valid directory.")
+    if not os.path.isdir(args.folder):
+        logger.error(f"The specified path '{args.folder}' is not a valid directory.")
         return 1
 
     # Initialize converter
@@ -146,7 +155,7 @@ def main():
     
     try:
         # Get list of HEIC files
-        heic_files = heic_converter.list_heic_files(folder_path)
+        heic_files = heic_converter.list_heic_files(args.folder)
         
         if not heic_files:
             logger.error("No HEIC files found in the specified directory.")
@@ -156,28 +165,52 @@ def main():
         
         success_count = 0
         failure_count = 0
+        skipped_count = 0
         converted_files = []
-        
+        skipped_files = []  # New list to track skipped files
+
         # Convert files with progress bar
         for heic_file in tqdm(heic_files, desc="Converting", unit="file"):
             try:
                 heic_size = Path(heic_file).stat().st_size / (1024 * 1024)
                 logger.debug(f"Converting file: {heic_file} ({heic_size:.2f} MB)")
                 
+                file_converted = False
+                file_skipped = False
+                
                 if args.format in ["png", "both"]:
                     png_path = heic_converter.convert_to_png(heic_file, args)
-                    png_size = Path(png_path).stat().st_size / (1024 * 1024)
-                    logger.debug(f"PNG size: {png_size:.2f} MB")
-                    converted_files.append(png_path)
+                    if png_path:  # File was actually converted
+                        png_size = Path(png_path).stat().st_size / (1024 * 1024)
+                        logger.debug(f"PNG size: {png_size:.2f} MB")
+                        converted_files.append(png_path)
+                        file_converted = True
+                    else:
+                        # File was skipped due to existing=fail
+                        file_skipped = True
+                        skipped_count += 1
                 
                 if args.format in ["jpg", "both"]:
                     jpg_path = heic_converter.convert_to_jpg(heic_file, args)
-                    jpg_size = Path(jpg_path).stat().st_size / (1024 * 1024)
-                    logger.debug(f"JPG size: {jpg_size:.2f} MB")
-                    converted_files.append(jpg_path)
+                    if jpg_path:  # File was actually converted
+                        jpg_size = Path(jpg_path).stat().st_size / (1024 * 1024)
+                        logger.debug(f"JPG size: {jpg_size:.2f} MB")
+                        converted_files.append(jpg_path)
+                        file_converted = True
+                    else:
+                        # Only count as skipped if we haven't already counted it
+                        if args.format != "both" or not file_converted:
+                            file_skipped = True
+                            skipped_count += 1
                 
-                success_count += 1
-                
+                # If file was skipped, add to skipped files list
+                if file_skipped and not file_converted:
+                    skipped_files.append(heic_file)  # Store full path instead of basename
+                    
+                # Only count as success if at least one conversion succeeded
+                if file_converted:
+                    success_count += 1
+                    
             except Exception as e:
                 logger.error(f"Failed to convert {heic_file}: {str(e)}")
                 failure_count += 1
@@ -186,19 +219,35 @@ def main():
         # Display conversion summary
         total_original_size = sum(Path(f).stat().st_size for f in heic_files) / (1024 * 1024)
         total_converted_size = sum(Path(f).stat().st_size for f in converted_files) / (1024 * 1024)
-        
+
         logger.info("Conversion summary:")
         logger.info(f"  Files processed: {len(heic_files)}")
+        logger.info(f"  Successfully converted: {success_count}")
+        logger.info(f"  Skipped (already exist): {skipped_count}")
+        logger.info(f"  Failed: {failure_count}")
         logger.info(f"  Total original size: {total_original_size:.2f} MB")
         logger.info(f"  Total converted size: {total_converted_size:.2f} MB")
-        
+
         space_diff = total_original_size - total_converted_size
         if space_diff > 0:
             logger.info(f"  Space saved: {space_diff:.2f} MB")
         else:
             logger.info(f"  Space increased: {-space_diff:.2f} MB")
-        
-        logger.info(f"Conversion completed. Success: {success_count}, Failed: {failure_count}")
+
+        if skipped_count > 0:
+            if args.existing == "fail":
+                logger.info(f"\nNote: {skipped_count} files were skipped because output files already exist.")
+                logger.info("Use --existing rename or --existing overwrite to handle existing files differently.")
+                
+                # Show list of skipped files (display up to 10 files to avoid excessive output)
+                max_display = 10
+                if skipped_files:
+                    logger.info("\nSkipped files:")
+                    for i, file in enumerate(skipped_files[:max_display]):
+                        logger.info(f"  - {file}")  # This will now show the full path
+                    
+                    if len(skipped_files) > max_display:
+                        logger.info(f"  ... and {len(skipped_files) - max_display} more files")
         
         return 0
     

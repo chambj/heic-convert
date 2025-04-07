@@ -3,12 +3,12 @@
 block_cipher = None
 
 a = Analysis(
-    ['heic-convert.py'],
+    ['gui.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['PIL._tkinter_finder', 'src.converter', 'converter'],
-    hookspath=['.'],
+    hiddenimports=['PIL._tkinter_finder'],
+    hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
@@ -26,14 +26,14 @@ exe = EXE(
     a.zipfiles,
     a.datas,
     [],
-    name='heic-convert',
+    name='heic-converter-gui',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
     upx=True,
     upx_exclude=[],
     runtime_tmpdir=None,
-    console=True,
+    console=False,  # Set to False for GUI apps
     disable_windowed_traceback=False,
     argv_emulation=False,
     target_arch=None,

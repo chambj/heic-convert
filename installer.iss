@@ -1,13 +1,14 @@
-#define MyAppName "heic-convert"
-#define MyAppVersion "0.1.0"
+#define MyAppName "HEIC Convert"
+#define MyAppVersion "0.2.0"
 #define MyAppPublisher "Jacques C"
 #define MyAppURL "https://github.com/chambj/heic-convert"
-#define MyAppExeName "heic-convert.exe"
+#define MyAppExeName "heic-convert-gui.exe"
+#define MyCliExeName "heic-convert.exe"
 
 [Setup]
 ; NOTE: The value of AppId uniquely identifies this application.
 ; Do not use the same AppId value in installers for other applications.
-AppId={{6E375060-5231-4566-8E77-A43D622CF60B}
+AppId={{jc.heic-convert.5E31-4C6A-8F0E-BFA7EA4D2433}
 AppName={#MyAppName}
 AppVersion={#MyAppVersion}
 AppPublisher={#MyAppPublisher}
@@ -20,7 +21,7 @@ OutputDir=installer
 OutputBaseFilename=heic-convert-setup
 Compression=lzma
 SolidCompression=yes
-SetupIconFile=heic-convert.ico
+SetupIconFile=resources\heic-convert.ico
 
 [Languages]
 Name: "english"; MessagesFile: "compiler:Default.isl"
@@ -33,8 +34,12 @@ Name: "addtopath"; Description: "Add application to PATH environment variable"; 
 Source: "dist\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
 [Icons]
-Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"
+; GUI application shortcut
+Name: "{group}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Comment: "Launch HEIC Convert GUI"
 Name: "{commondesktop}\{#MyAppName}"; Filename: "{app}\{#MyAppExeName}"; Tasks: desktopicon
+
+; Command-line application shortcut - optional but helpful
+Name: "{group}\HEIC Convert (Command Line)"; Filename: "{app}\{#MyCliExeName}"; IconFilename: "{app}\{#MyCliExeName}"; Comment: "Run HEIC Convert from command line"
 
 [Registry]
 Root: HKLM; Subkey: "SYSTEM\CurrentControlSet\Control\Session Manager\Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Tasks: addtopath; Check: NeedsAddPath(ExpandConstant('{app}'))

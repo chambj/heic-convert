@@ -18,6 +18,30 @@ This project is a Python application that scans a specified folder for HEIC imag
 2. Run the installer and follow the prompts
 3. Optionally check "Add application to PATH" to use from command line
 
+### Using the GUI Application
+
+The GUI provides an intuitive interface for converting HEIC images without using the command line.
+
+1. **Launch the GUI**:
+   - Double-click the "HEIC Convert" shortcut on your desktop or in the Start menu.
+
+2. **Select Source and Output Folders**:
+   - Click **Browse** next to "Source Folder" to select the folder containing your HEIC files.
+   - Click **Browse** next to "Output Folder" to select where converted files will be saved (optional; defaults to a subfolder named after the chosen format).
+
+3. **Choose Conversion Settings**:
+   - Select the desired output format (JPG, PNG, or Both).
+   - Adjust JPG quality and PNG compression settings as needed.
+   - Choose how to handle existing files (rename, overwrite, or fail).
+
+4. **Start Conversion**:
+   - Click **Convert Files** to begin processing.
+   - Monitor progress via the progress bar and log output.
+
+5. **Cancel Conversion** (if needed):
+   - Click **Stop** to cancel the ongoing conversion.
+
+
 ### Using the Command-line Interface
 
 ```
@@ -81,7 +105,7 @@ Only one resize option will be applied at a time. Aspect ratio is always preserv
 
 ```bash
 # Navigate to project directory
-cd path\to\HEICConverter\heic-converter
+cd path\to\HEICConvert\heic-convert
 
 # Create a virtual environment
 python -m venv venv
@@ -220,6 +244,19 @@ For more detailed test output:
 ```bash
 pytest -v
 ```
+
+### Running the GUI Tests
+
+These tests can be run with pytest:
+
+```
+pytest tests/test_gui.py -v
+```
+
+- The tests above use mocking to avoid real file dialogs and user interaction
+- The test_conversion_thread_created test verifies that a thread is created but doesn't run it
+- These tests don't verify the visual appearance
+
 
 ## License
 

@@ -1,29 +1,25 @@
 # -*- mode: python ; coding: utf-8 -*-
 
-block_cipher = None
 
 a = Analysis(
-    ['heic-convert.py'],
+    ['C:\\Users\\jcham\\src\\heic-convert\\src\\main.py'],
     pathex=[],
     binaries=[],
-    datas=[],
-    hiddenimports=['PIL._tkinter_finder', 'src.converter', 'converter'],
-    hookspath=['.'],
+    datas=[('C:\\Users\\jcham\\src\\heic-convert\\resources', 'resources')],
+    hiddenimports=[],
+    hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
+    optimize=0,
 )
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
     name='heic-convert',
@@ -39,5 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='resources\heic-convert.ico',
+    icon=['C:\\Users\\jcham\\src\\heic-convert\\resources\\heic-convert.ico'],
 )
