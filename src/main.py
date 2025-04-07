@@ -48,9 +48,7 @@ def setup_logging():
 
 logger = setup_logging()
 
-def parse_arguments():
-    """Parse command line arguments."""
-    parser = argparse.ArgumentParser(description="Convert HEIC images to PNG or JPG")
+def parse_arguments(parser):
     parser.add_argument("--folder", "-f", help="Folder path containing HEIC files")
     parser.add_argument("--output", "-o", help="Output folder for converted images")
     parser.add_argument("--format", "-t", choices=["png", "jpg", "both"], default="jpg",
@@ -64,7 +62,7 @@ def parse_arguments():
     parser.add_argument("--log-file", help="Save logs to specified file (default: no file logging)")
     
     resize_group = parser.add_mutually_exclusive_group()
-    resize_group.add_argument("--resize", type=int, help="Resize image by percentage (e.g., 50 for 50%)")
+    resize_group.add_argument("--resize", type=int, help="Resize image by percentage (e.g., 50 for 50%%)")
     resize_group.add_argument("--width", type=int, help="Resize image to specific width (maintaining aspect ratio)")
     resize_group.add_argument("--height", type=int, help="Resize image to specific height (maintaining aspect ratio)")
     
@@ -122,38 +120,45 @@ def convert_file(heic_file, args, heic_converter):
         return []
 
 def main():
-    """Main function to convert HEIC files."""
-    args = parse_arguments()
+    parser = argparse.ArgumentParser(description="Convert HEIC images to PNG or JPG")
+
+    args = parse_arguments(parser)
+
+    if not args.folder:
+        parser.print_help()
+        sys.exit("Error: folder is required.")
+
+    # Fix: Handle the case when folder is None
+    #args.folder = os.path.abspath(args.folder)
     
-    # Setup logging - only log to file if specified
-    global logger
-    logger = setup_logging()
+    # Fix: Handle the case when output_dir is None
+    if args.output_dir is None:
+        # Set default output directory as a subdirectory of the source
+        args.output_dir = os.path.join(args.folder, args.format)
+    else:
+        # Only convert to absolute path if not None
+        args.output_dir = os.path.abspath(args.output_dir)
     
     args = validate_format_arguments(args)
     
     # Log source and output directories
     logger.info(f"Source directory: {os.path.abspath(args.folder)}")
-    if args.output:
-        logger.info(f"Output directory: {os.path.abspath(args.output)}")
+    if args.output_dir:
+        logger.info(f"Output directory: {os.path.abspath(args.output_dir)}")
     logger.info("")  # Empty line for separation
     
-    # Get folder path from arguments or user input
-    folder_path = args.folder
-    if not folder_path:
-        folder_path = input("Enter the folder path to scan for HEIC files: ")
-    
     # Validate folder path
-    if not os.path.isdir(folder_path):
-        logger.error(f"The specified path '{folder_path}' is not a valid directory.")
+    if not os.path.isdir(args.folder):
+        logger.error(f"The specified path '{args.folder}' is not a valid directory.")
         return 1
 
     # Initialize converter
-    heic_converter = HeicConvert(output_dir=args.output, jpg_quality=args.jpg_quality, 
+    heic_converter = HeicConvert(output_dir=args.output_dir, jpg_quality=args.jpg_quality, 
                                    existing_mode=args.existing)
     
     try:
         # Get list of HEIC files
-        heic_files = heic_converter.list_heic_files(folder_path)
+        heic_files = heic_converter.list_heic_files(args.folder)
         
         if not heic_files:
             logger.error("No HEIC files found in the specified directory.")

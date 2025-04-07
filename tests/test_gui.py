@@ -32,7 +32,7 @@ pytestmark = pytest.mark.skipif(
     reason="GUI tests require a display. Use pytest-xvfb for headless testing."
 )
 
-from gui import HEICConverterGUI
+from src.gui import HEICConverterGUI
 
 class TestHEICConverterGUI:
     @pytest.fixture

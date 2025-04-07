@@ -12,7 +12,7 @@ import ctypes
 
 # Windows-specific application ID
 if platform.system() == "Windows":
-    myappid = 'jacquesc.heic-convert'
+    myappid = 'jc.heic-convert.5E31-4C6A-8F0E-BFA7EA4D2433'
     ctypes.windll.shell32.SetCurrentProcessExplicitAppUserModelID(myappid)
 
 class HEICConverterGUI:
@@ -42,9 +42,15 @@ class HEICConverterGUI:
     
     def set_application_icon(self):
         """Set application icon with platform-specific handling."""
-        # Get absolute path to the resources directory
-        # Fix: Use only one dirname call to get the correct directory
-        resources_dir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "resources")
+        # Special handling for PyInstaller bundles
+        if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
+            # Running as compiled executable
+            base_path = sys._MEIPASS
+            resources_dir = os.path.join(base_path, "resources")
+        else:
+            # Running as script
+            resources_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources")
+        
         print(f"Resources directory: {resources_dir}")
         
         try:
@@ -60,24 +66,11 @@ class HEICConverterGUI:
                         return
                     except Exception as ico_error:
                         print(f"Error setting icon with iconbitmap: {ico_error}")
-                        
-                        # Fallback: Try loading with PIL and converting to PhotoImage
-                        try:
-                            from PIL import Image, ImageTk
-                            pil_img = Image.open(ico_path)
-                            icon_img = ImageTk.PhotoImage(pil_img)
-                            self.root.iconphoto(True, icon_img)
-                            self.icon_img = icon_img  # Keep reference
-                            print("Icon set using PIL and iconphoto")
-                            return
-                        except Exception as pil_error:
-                            print(f"PIL fallback also failed: {pil_error}")
                 else:
                     print(f"ICO file not found at: {ico_path}")
-                    
                     # List files in resources dir to help debugging
-                    print(f"Files in resources directory:")
                     if os.path.exists(resources_dir):
+                        print(f"Files in resources directory:")
                         for file in os.listdir(resources_dir):
                             print(f"  - {file}")
                     else:
@@ -115,9 +108,9 @@ class HEICConverterGUI:
         
         # Add frames to paned window with weights
         main_paned.add(settings_container, weight=1)  
-        main_paned.add(log_container, weight=2)       
+        main_paned.add(log_container, weight=3)       
         
-        # Position the sash (divider) at 60% of the window width
+        # Position the sash (divider) at 45% of the window width
         def position_sash(event=None):
             main_paned.sashpos(0, int(self.root.winfo_width() * 0.45))
         
@@ -139,23 +132,28 @@ class HEICConverterGUI:
         # Source folder selection
         ttk.Label(settings_frame, text="Source Folder:").grid(row=0, column=0, sticky="w", padx=5, pady=5)
         self.source_var = tk.StringVar()
-        source_entry = ttk.Entry(settings_frame, textvariable=self.source_var, width=25)
-        source_entry.grid(row=0, column=1, padx=5, pady=5)
+        source_entry = ttk.Entry(settings_frame, textvariable=self.source_var)
+        source_entry.grid(row=0, column=1, padx=5, pady=5, sticky="ew") 
         self.settings_widgets.append(source_entry)
         browse_source_button = ttk.Button(settings_frame, text="Browse...", command=self.browse_source)
         browse_source_button.grid(row=0, column=2, padx=5, pady=5)
         self.settings_widgets.append(browse_source_button)
         
+
+        
         # Output folder selection
         ttk.Label(settings_frame, text="Output Folder:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         self.output_var = tk.StringVar()
-        output_entry = ttk.Entry(settings_frame, textvariable=self.output_var, width=25)
-        output_entry.grid(row=1, column=1, padx=5, pady=5)
+        output_entry = ttk.Entry(settings_frame, textvariable=self.output_var)
+        output_entry.grid(row=1, column=1, padx=5, pady=5, sticky="ew") 
         self.settings_widgets.append(output_entry)
         browse_output_button = ttk.Button(settings_frame, text="Browse...", command=self.browse_output)
         browse_output_button.grid(row=1, column=2, padx=5, pady=5)
         self.settings_widgets.append(browse_output_button)
         
+        # Configure column weights to allow horizontal expansion
+        settings_frame.columnconfigure(1, weight=1)
+
         # Format selection
         ttk.Label(settings_frame, text="Output Format:").grid(row=2, column=0, sticky="w", padx=5, pady=5)
         self.format_var = tk.StringVar(value="jpg")
