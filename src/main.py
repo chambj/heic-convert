@@ -12,6 +12,7 @@ from tqdm import tqdm
 from src.converter import HeicConvert  
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
+from src.file_discovery import FileDiscovery
 
 # Update the logging configuration
 def setup_logging():
@@ -50,7 +51,8 @@ logger = setup_logging()
 
 def parse_arguments(parser):
     parser.add_argument("--folder", "-f", help="Folder path containing HEIC files")
-    parser.add_argument("--output", "-o", help="Output folder for converted images")
+    parser.add_argument("--output", "-o", 
+                        help="Output folder for converted images (default: creates a subfolder named after the format in the source folder)")
     parser.add_argument("--format", "-t", choices=["png", "jpg", "both"], default="jpg",
                         help="Target format: png, jpg, or both (default: jpg)")
     parser.add_argument("--jpg-quality", "-q", type=int, default=90, 
@@ -60,6 +62,8 @@ def parse_arguments(parser):
     parser.add_argument("--existing", "-e", choices=["rename", "overwrite", "fail"], default="fail",
                         help="How to handle existing files: rename (add number), overwrite, or fail (default: fail)")
     parser.add_argument("--log-file", help="Save logs to specified file (default: no file logging)")
+    parser.add_argument("--recursive", "-r", action="store_true", 
+                        help="Recursively search for HEIC files in subdirectories")
     
     resize_group = parser.add_mutually_exclusive_group()
     resize_group.add_argument("--resize", type=int, help="Resize image by percentage (e.g., 50 for 50%%)")
@@ -119,6 +123,26 @@ def convert_file(heic_file, args, heic_converter):
         logger.error(f"Failed to convert {heic_file}: {str(e)}")
         return []
 
+""" # Add to src/main.py - find_heic_files function
+def find_heic_files(folder, recursive=True):
+    #Find all HEIC files in a folder and optionally its subdirectories.
+    heic_files = []
+    
+    if recursive:
+        # Walk through all subdirectories
+        for root, _, files in os.walk(folder):
+            for file in files:
+                if file.lower().endswith(('.heic', '.heif')):
+                    heic_files.append(os.path.join(root, file))
+    else:
+        # Just search the top directory
+        for file in os.listdir(folder):
+            file_path = os.path.join(folder, file)
+            if os.path.isfile(file_path) and file.lower().endswith(('.heic', '.heif')):
+                heic_files.append(file_path)
+    
+    return heic_files """
+
 def main():
     parser = argparse.ArgumentParser(description="Convert HEIC images to PNG or JPG")
 
@@ -149,13 +173,15 @@ def main():
         logger.error(f"The specified path '{args.folder}' is not a valid directory.")
         return 1
 
-    # Initialize converter
+    # Create file discoverer and converter
+    file_discoverer = FileDiscovery()
     heic_converter = HeicConvert(output_dir=args.output, jpg_quality=args.jpg_quality, 
                                    existing_mode=args.existing)
     
     try:
-        # Get list of HEIC files
-        heic_files = heic_converter.list_heic_files(args.folder)
+        # Find HEIC files
+        heic_files = file_discoverer.find_heic_files(args.folder, recursive=args.recursive)
+        logger.info(f"Found {len(heic_files)} HEIC/HEIF files")
         
         if not heic_files:
             logger.error("No HEIC files found in the specified directory.")

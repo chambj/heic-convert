@@ -1,43 +1,29 @@
 import os
-import glob
 import logging
 from pathlib import Path
 from PIL import Image
 import pillow_heif
+import piexif
 
 # Register HEIF opener with Pillow
 pillow_heif.register_heif_opener()
 
 class HeicConvert:
-    def __init__(self, output_dir=None, jpg_quality=90, existing_mode="rename"):
-        """
-        Initialize the HEIC converter.
-        
-        Args:
-            output_dir: Directory to save converted images (default: same as source)
-            jpg_quality: Quality for JPG conversion (1-100)
-            existing_mode: How to handle existing files: rename, overwrite, or fail
-        """
-        self.output_dir = output_dir
-        
-        # Validate quality setting
-        if not 1 <= jpg_quality <= 100:
-            raise ValueError("JPEG quality must be between 1 and 100")
-        self.jpg_quality = jpg_quality
-        
-        # Validate existing_mode
-        if existing_mode not in ["rename", "overwrite", "fail"]:
-            raise ValueError("existing_mode must be 'rename', 'overwrite', or 'fail'")
-        self.existing_mode = existing_mode
-        
-        self.logger = logging.getLogger(__name__)
+    """Class responsible for converting HEIC/HEIF files to other formats."""
     
-    def list_heic_files(self, folder_path):
-        """Find all HEIC files in the specified folder."""
-        self.logger.info(f"Scanning for HEIC files in {folder_path}")
-        heic_pattern = os.path.join(folder_path, "*.heic")
-        heif_pattern = os.path.join(folder_path, "*.heif")
-        return glob.glob(heic_pattern, recursive=False) + glob.glob(heif_pattern, recursive=False)
+    def __init__(self, output_dir=None, jpg_quality=90, existing_mode="rename"):
+        """Initialize the HEIC converter."""
+        # Validate inputs
+        if jpg_quality < 1 or jpg_quality > 100:
+            raise ValueError(f"JPEG quality must be between 1-100, got {jpg_quality}")
+        
+        if existing_mode not in ["rename", "overwrite", "fail"]:
+            raise ValueError(f"Invalid existing_mode: {existing_mode}. Must be 'rename', 'overwrite', or 'fail'")
+        
+        self.output_dir = output_dir
+        self.jpg_quality = jpg_quality
+        self.existing_mode = existing_mode
+        self.logger = logging.getLogger(__name__)
     
     def _get_output_path(self, input_path, extension):
         """Generate output path for converted file."""
@@ -125,21 +111,26 @@ class HeicConvert:
         output_name = os.path.basename(output_file)
         self.logger.info(f"Converted: {input_name} → {output_name}")
     
-    def convert_to_jpg(self, heic_path, args=None):
-        """Convert HEIC file to JPG format with optional resizing."""
+    def convert_to_jpg(self, heic_file, args):
+        """Convert HEIC file to JPG."""
         try:
-            output_path = self._get_output_path(heic_path, ".jpg")
-            self.logger.debug(f"Converting {heic_path} to JPG (quality: {self.jpg_quality})")
+            output_path = self._get_output_path(heic_file, ".jpg")
+            self.logger.debug(f"Converting {heic_file} to JPG (quality: {self.jpg_quality})")
             
-            img = Image.open(heic_path)
+            img = Image.open(heic_file)
             
             # Apply resizing if args is provided
             if args:
                 img = self.resize_image(img, args)
             
+            # Add EXIF data if available
+            exif_data = img.info.get("exif") if hasattr(img, "info") else None
+            if exif_data is not None:
+                piexif.insert(exif_data, output_path)
+            
             img.save(output_path, format="JPEG", quality=self.jpg_quality)
             
-            self._log_conversion(heic_path, output_path)
+            self._log_conversion(heic_file, output_path)
             
             self.logger.debug(f"Saved JPG to {output_path}")
             return output_path
@@ -147,17 +138,16 @@ class HeicConvert:
             # This is an expected condition when mode="fail", so just return None
             return None
         except Exception as e:
-            # These are actual errors, so log them as such
-            self.logger.debug(f"Error converting {heic_path} to JPG: {str(e)}")
-            raise
+            self.logger.error(f"Error converting {heic_file} to JPG: {str(e)}")
+            return None
 
-    def convert_to_png(self, heic_path, args=None):
-        """Convert HEIC file to PNG format with optional resizing."""
+    def convert_to_png(self, heic_file, args):
+        """Convert HEIC file to PNG."""
         try:
-            output_path = self._get_output_path(heic_path, ".png")
-            self.logger.debug(f"Converting {heic_path} to PNG")
+            output_path = self._get_output_path(heic_file, ".png")
+            self.logger.debug(f"Converting {heic_file} to PNG")
             
-            img = Image.open(heic_path)
+            img = Image.open(heic_file)
             
             # Apply resizing if args is provided
             if args:
@@ -167,10 +157,10 @@ class HeicConvert:
             compression = args.png_compression if args else 6
             img.save(output_path, format="PNG", compress_level=compression)
             
-            self._log_conversion(heic_path, output_path)
+            self._log_conversion(heic_file, output_path)
             
             self.logger.debug(f"Saved PNG to {output_path}")
             return output_path
         except Exception as e:
-            self.logger.debug(f"Error converting {heic_path} to PNG: {str(e)}")
+            self.logger.debug(f"Error converting {heic_file} to PNG: {str(e)}")
             raise

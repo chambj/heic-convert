@@ -7,6 +7,7 @@ from datetime import datetime
 import platform
 from src.converter import HeicConvert
 from src.main import setup_logging, validate_format_arguments
+from src.file_discovery import FileDiscovery
 import argparse
 import ctypes
 
@@ -139,8 +140,6 @@ class HEICConverterGUI:
         browse_source_button.grid(row=0, column=2, padx=5, pady=5)
         self.settings_widgets.append(browse_source_button)
         
-
-        
         # Output folder selection
         ttk.Label(settings_frame, text="Output Folder:").grid(row=1, column=0, sticky="w", padx=5, pady=5)
         self.output_var = tk.StringVar()
@@ -150,6 +149,12 @@ class HEICConverterGUI:
         browse_output_button = ttk.Button(settings_frame, text="Browse...", command=self.browse_output)
         browse_output_button.grid(row=1, column=2, padx=5, pady=5)
         self.settings_widgets.append(browse_output_button)
+        
+        # Add explanation label
+        output_info = ttk.Label(settings_frame, 
+                                text="If left empty, images will be saved in a subfolder of the source directory",
+                                font=("", 8), foreground="gray")
+        output_info.grid(row=2, column=1, padx=5, pady=(0, 5), sticky="w")
         
         # Configure column weights to allow horizontal expansion
         settings_frame.columnconfigure(1, weight=1)
@@ -189,6 +194,12 @@ class HEICConverterGUI:
         existing_combobox = ttk.Combobox(settings_frame, textvariable=self.existing_var, values=["fail", "rename", "overwrite"], width=10)
         existing_combobox.grid(row=5, column=1, sticky="w", padx=5, pady=5)
         self.settings_widgets.append(existing_combobox)
+        
+        # Recursive search option
+        self.recursive_var = tk.BooleanVar(value=True)
+        recursive_check = ttk.Checkbutton(settings_frame, text="Search subdirectories recursively", 
+                                          variable=self.recursive_var)
+        recursive_check.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky="w")
         
         # Resize options
         resize_frame = ttk.LabelFrame(parent, text="Resize Options")
@@ -414,24 +425,18 @@ class HEICConverterGUI:
     def convert_files(self):
         """Actual conversion process that runs in a separate thread."""
         try:
-            # Build args object similar to CLI version
-            args = self.build_args_object()
-            
-            # Create converter instance
-            converter = HeicConvert(
-                output_dir=self.output_var.get(),
-                jpg_quality=self.jpg_quality_var.get(),
-                existing_mode=self.existing_var.get()
+            file_discoverer = FileDiscovery()
+            heic_files = file_discoverer.find_heic_files(
+                self.source_var.get(), 
+                recursive=self.recursive_var.get()
             )
             
-            # Get HEIC files
-            heic_files = converter.list_heic_files(self.source_var.get())
+            self.log(f"Found {len(heic_files)} HEIC/HEIF files")
             
             if not heic_files:
                 self.log("No HEIC files found in the selected directory.")
                 return
             
-            self.log(f"Found {len(heic_files)} HEIC files")
             total_files = len(heic_files)
             conversion_counter = 0
             
@@ -454,14 +459,14 @@ class HEICConverterGUI:
                     # Convert the file
                     results = []
                     if self.format_var.get() in ["jpg", "both"]:
-                        jpg_path = converter.convert_to_jpg(heic_file, args)
+                        jpg_path = heic_converter.convert_to_jpg(heic_file)
                         if jpg_path:
                             results.append(jpg_path)
                             self.log(f"  → Created: {os.path.basename(jpg_path)}")
                             conversion_counter += 1
                     
                     if self.format_var.get() in ["png", "both"]:
-                        png_path = converter.convert_to_png(heic_file, args)
+                        png_path = heic_converter.convert_to_png(heic_file)
                         if png_path:
                             results.append(png_path)
                             self.log(f"  → Created: {os.path.basename(png_path)}")
@@ -494,6 +499,7 @@ class HEICConverterGUI:
         args.resize = self.resize_var.get() if self.resize_var.get() > 0 else None
         args.width = self.width_var.get() if self.width_var.get() > 0 else None
         args.height = self.height_var.get() if self.height_var.get() > 0 else None
+        args.recursive = self.recursive_var.get()
         
         return args
 
