@@ -14,6 +14,8 @@ from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from src.file_discovery import FileDiscovery
 from src.conversion_manager import perform_conversion
+from src.version import VERSION
+
 
 # Initialize logger at module level
 logger = logging.getLogger("heic_convert")
@@ -42,11 +44,10 @@ def setup_logging(args=None):
     # Add file handler if log file specified
     if args and args.log_file:
         try:
-            log_dir = os.path.dirname(args.log_file)
-            if log_dir:
-                os.makedirs(log_dir, exist_ok=True)
+            log_path = Path(args.log_file)
+            log_path.parent.mkdir(exist_ok=True, parents=True)
                 
-            file_handler = logging.FileHandler(args.log_file, mode='w')
+            file_handler = logging.FileHandler(str(log_path), mode='w')
             file_handler.setLevel(logging.DEBUG)
             file_handler.setFormatter(logging.Formatter('%(asctime)s - %(levelname)s - %(name)s - %(message)s'))
             logger.addHandler(file_handler)
@@ -57,9 +58,9 @@ def setup_logging(args=None):
     return logger
 
 def parse_arguments(parser):
-    parser.add_argument("--folder", "-f", help="Folder path containing HEIC files")
+    parser.add_argument("--folder", "-f", help="Folder path containing HEIC files to convert")
     parser.add_argument("--output", "-o", 
-                        help="Output folder for converted images (default: creates a subfolder named after the format in the source folder)")
+                        help="Output folder path for converted images (default: creates a subfolder named after the format in the source folder)")
     parser.add_argument("--format", "-t", choices=["png", "jpg", "heic", "both"], default="jpg",
                         help="Target format: png, jpg, heic, or both (saves as png and jpg). HEIC is experimental. (default: jpg)")
     parser.add_argument("--jpg-quality", "-q", type=int, default=90, 
@@ -73,6 +74,9 @@ def parse_arguments(parser):
     parser.add_argument("--log-file", help="Save logs to specified file (default: no file logging)")
     parser.add_argument("--recursive", "-r", action="store_true", 
                         help="Recursively search for HEIC files in subdirectories")
+    parser.add_argument('--version', action='version', 
+                       version=f'HEIC Converter v{VERSION}')
+    
     
     resize_group = parser.add_mutually_exclusive_group()
     resize_group.add_argument("--resize", type=int, help="Resize image by percentage (e.g., 50 for 50%%)")
@@ -113,31 +117,37 @@ def main():
     parser = argparse.ArgumentParser(description="Convert HEIC images to PNG or JPG")
     args = parse_arguments(parser)
 
-    if not args.folder:
+    if not args.folder and not args.output:
         parser.print_help()
-        sys.exit("Error: folder is required.")
+        sys.exit("Error: folder and output are required.")
 
     # Configure logger early
     setup_logging(args)
+    logger.info(f"HEIC Converter v{VERSION}")
+    
+    if not check_system_resources():
+        logger.warning("Continuing with limited resources, large files may fail.")
     
     if args.output is None:
         # Set default output directory as a subdirectory of the source
-        args.output = os.path.join(args.folder, args.format)
+        args.output = str(Path(args.folder) / args.format)
     else:
         # Only convert to absolute path if not None
-        args.output = os.path.abspath(args.output)
+        args.output = Path(args.output).absolute()
+
+    
     
     # Now validate arguments (after logger is set up)
     validate_format_arguments(args)
     
     # Log source and output directories
-    logger.info(f"Source directory: {os.path.abspath(args.folder)}")
+    logger.info(f"Source directory: {Path(args.folder).absolute()}")
     if args.output:
-        logger.info(f"Output directory: {os.path.abspath(args.output)}")
+        logger.info(f"Output directory: {Path(args.folder).absolute()}")
     logger.info("")  # Empty line for separation
     
     # Validate folder path
-    if not os.path.isdir(args.folder):
+    if not Path(args.folder).is_dir():
         logger.error(f"The specified path '{args.folder}' is not a valid directory.")
         return 1
 

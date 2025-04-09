@@ -88,15 +88,20 @@ class TestHEICConverterGUI:
     def test_gui_initialization(self, gui):
         """Test that GUI initializes with all required components."""
         assert gui.root.title() == "HEIC Converter"
+        # Check initial state
+        assert gui.conversion_running == False
+        assert gui.conversion_cancelled == False
+        # Check that UI elements are initialized
+        assert hasattr(gui, 'root')
+        assert hasattr(gui, 'source_var')
+        assert hasattr(gui, 'output_var')
         # Check default values
         assert gui.format_var.get() == "jpg"
         assert gui.jpg_quality_var.get() == 90
         assert gui.png_compression_var.get() == 6
         assert gui.existing_var.get() == "fail"
-        assert gui.recursive_var.get() == True  # Add this line
+        assert gui.recursive_var.get() == False  
         # Check that main components exist
-        assert hasattr(gui, 'source_var')
-        assert hasattr(gui, 'output_var')
         assert hasattr(gui, 'format_var')
         assert hasattr(gui, 'jpg_quality_var')
         assert hasattr(gui, 'png_compression_var')

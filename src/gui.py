@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 import sys
 import tkinter as tk
 from tkinter import filedialog, ttk, messagebox
@@ -11,6 +12,8 @@ from src.file_discovery import FileDiscovery
 from src.conversion_manager import perform_conversion
 import argparse
 import ctypes
+import webbrowser 
+from src.version import VERSION
 
 # Windows-specific application ID
 if platform.system() == "Windows":
@@ -48,18 +51,18 @@ class HEICConverterGUI:
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             # Running as compiled executable
             base_path = sys._MEIPASS
-            resources_dir = os.path.join(base_path, "resources")
+            resources_dir = Path(base_path / "resources")
         else:
             # Running as script
-            resources_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "resources")
+            resources_dir = Path(__file__).absolute().parent.parent / "resources"
         
         print(f"Resources directory: {resources_dir}")
         
         try:
             if platform.system() == "Windows":
                 # On Windows, use .ico file for best integration
-                ico_path = os.path.join(resources_dir, "heic-convert.ico")
-                if os.path.exists(ico_path):
+                ico_path = Path(resources_dir / "heic-convert.ico")
+                if Path(ico_path).exists():
                     print(f"Found ICO file at: {ico_path}")
                     try:
                         # Try the standard method first
@@ -71,7 +74,7 @@ class HEICConverterGUI:
                 else:
                     print(f"ICO file not found at: {ico_path}")
                     # List files in resources dir to help debugging
-                    if os.path.exists(resources_dir):
+                    if Path(resources_dir).exists():
                         print(f"Files in resources directory:")
                         for file in os.listdir(resources_dir):
                             print(f"  - {file}")
@@ -79,8 +82,8 @@ class HEICConverterGUI:
                         print("  Resources directory does not exist")
             
             # For non-Windows or as fallback, use PNG
-            png_path = os.path.join(resources_dir, "heic-convert.png")
-            if os.path.exists(png_path):
+            png_path = Path(resources_dir / "heic-convert.png")
+            if Path(png_path).exists():
                 print(f"Found PNG file at: {png_path}")
                 try:
                     logo_img = tk.PhotoImage(file=png_path)
@@ -125,6 +128,9 @@ class HEICConverterGUI:
         
         # Set up logs in the right frame
         self.setup_logs(log_container)
+
+        # Add footer with GitHub link
+        self.setup_footer()
     
     def setup_settings(self, parent):
         # Settings frame
@@ -171,9 +177,12 @@ class HEICConverterGUI:
         png_radio = ttk.Radiobutton(format_frame, text="PNG", variable=self.format_var, value="png")
         png_radio.pack(side="left", padx=5)
         self.settings_widgets.append(png_radio)
-        both_radio = ttk.Radiobutton(format_frame, text="Both", variable=self.format_var, value="both")
+        both_radio = ttk.Radiobutton(format_frame, text="JPG & PNG", variable=self.format_var, value="both")
         both_radio.pack(side="left", padx=5)
         self.settings_widgets.append(both_radio)
+        heic_radio = ttk.Radiobutton(format_frame, text="HEIC", variable=self.format_var, value="heic")
+        heic_radio.pack(side="left", padx=5)
+        self.settings_widgets.append(heic_radio)
         
         # JPG Quality
         ttk.Label(settings_frame, text="JPG Quality (1-100):").grid(row=3, column=0, sticky="w", padx=5, pady=5)
@@ -197,7 +206,7 @@ class HEICConverterGUI:
         self.settings_widgets.append(existing_combobox)
         
         # Recursive search option
-        self.recursive_var = tk.BooleanVar(value=True)
+        self.recursive_var = tk.BooleanVar(value=False)
         recursive_check = ttk.Checkbutton(settings_frame, text="Search subdirectories recursively", 
                                           variable=self.recursive_var)
         recursive_check.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky="w")
@@ -289,6 +298,31 @@ class HEICConverterGUI:
         history_scrollbar = ttk.Scrollbar(history_frame, command=self.history_text.yview)
         history_scrollbar.pack(fill="y", side="right")
         self.history_text.config(yscrollcommand=history_scrollbar.set)
+
+    def setup_footer(self):
+        """Set up footer with GitHub link and license information."""
+        footer_frame = ttk.Frame(self.root)
+        footer_frame.pack(side="bottom", fill="x", padx=10, pady=5)
+        
+        # Create a style for hyperlink
+        link_style = ttk.Style()
+        link_style.configure("Link.TLabel", foreground="blue", font=("", 9, "underline"))
+        
+        # GitHub link label
+        github_link = ttk.Label(
+            footer_frame, 
+            text="View License and Terms on GitHub", 
+            style="Link.TLabel",
+            cursor="hand2"  # Hand cursor on hover
+        )
+        github_link.pack(side="right", padx=5)
+        
+        # Version info on the left
+        version_label = ttk.Label(footer_frame, text=f"HEIC Converter v{VERSION}")
+        version_label.pack(side="left", padx=5)
+        
+        # Bind click event
+        github_link.bind("<Button-1>", lambda e: webbrowser.open_new("https://github.com/chambj/heic-convert"))
     
     def browse_source(self):
         folder = filedialog.askdirectory(title="Select Source Folder")
@@ -317,8 +351,8 @@ class HEICConverterGUI:
             # This is likely a path - check if it contains a conversion arrow
             if ' → ' in message:
                 parts = message.split(' → ')
-                input_file = os.path.basename(parts[0])
-                output_file = os.path.basename(parts[1])
+                input_file = Path(parts[0]).name
+                output_file = Path(parts[1]).name
                 display_message = f"{input_file} → {output_file}"
         
         # Store in current log
@@ -360,7 +394,7 @@ class HEICConverterGUI:
             messagebox.showerror("Error", "Please select a source folder")
             return
         
-        if not os.path.isdir(source_folder):
+        if not Path(source_folder).is_dir():
             messagebox.showerror("Error", "Source folder does not exist")
             return
         
@@ -369,6 +403,7 @@ class HEICConverterGUI:
     
         # Re-configure logger with current log file setting
         self.logger = setup_logging(args)
+        self.log(f"HEIC Converter v{VERSION}")
 
         # Clear current log and move to history before starting new conversion
         self.clear_current_log()
@@ -391,7 +426,7 @@ class HEICConverterGUI:
         # Log the start of conversion with source/destination info
         self.log(f"Starting conversion: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
         self.log(f"Source folder: {source_folder}")
-        output_folder = self.output_var.get() or os.path.join(source_folder, self.format_var.get())
+        output_folder = self.output_var.get() or Path(source_folder / self.format_var.get())
         self.log(f"Output folder: {output_folder}")
         self.log(f"Format: {self.format_var.get()}")
         self.log("-" * 30)
@@ -454,7 +489,7 @@ class HEICConverterGUI:
         """Actual conversion process that runs in a separate thread."""
         try:
             # Get the output folder
-            output_folder = self.output_var.get() or os.path.join(self.source_var.get(), self.format_var.get())
+            output_folder = self.output_var.get() or Path(self.source_var.get() / self.format_var.get())
             
             # Build args
             args = self.build_args_object()

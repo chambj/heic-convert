@@ -28,19 +28,21 @@ class HeicConvert:
     
     def _get_output_path(self, input_path, extension):
         """Generate output path for converted file."""
-        input_path = Path(input_path)
-        filename = input_path.stem + extension
+        input_path = Path(input_path)  # Ensure input_path is a Path object
+        output_filename = input_path.stem + extension
         
         if self.output_dir:
-            os.makedirs(self.output_dir, exist_ok=True)
-            output_path = os.path.join(self.output_dir, filename)
+            # Make sure output_dir is a Path object
+            output_dir = Path(self.output_dir) if not isinstance(self.output_dir, Path) else self.output_dir
+            os.makedirs(output_dir, exist_ok=True)
+            output_path = output_dir / output_filename
         else:
-            output_path = os.path.join(input_path.parent, filename)
+            output_path = input_path.parent / output_filename
         
         # Handle existing files based on chosen mode
-        if os.path.exists(output_path):
+        if Path(output_path).exists():
             if self.existing_mode == "fail":
-                self.logger.info(f"Skipping: {os.path.basename(output_path)} (file already exists)")
+                self.logger.info(f"Skipping: {Path(output_path).name} (file already exists)")
                 self.logger.debug(f"Output file already exists and 'fail' mode selected: {output_path}")
                 # Raise a specialized exception that can be handled differently
                 raise FileExistsError(f"Output file already exists: {output_path}")
@@ -53,10 +55,10 @@ class HeicConvert:
                 # Current behavior: add numbering
                 counter = 1
                 original_path = output_path
-                while os.path.exists(output_path):
+                while Path(output_path).exists():
                     path_obj = Path(original_path)
                     new_name = f"{path_obj.stem}_{counter}{path_obj.suffix}"
-                    output_path = os.path.join(path_obj.parent, new_name)
+                    output_path = Path(path_obj.parent / new_name)
                     counter += 1
                 
                 self.logger.debug(f"Renamed output to avoid conflict: {output_path}")
@@ -108,8 +110,8 @@ class HeicConvert:
         self.logger.debug(f"Converted: {input_file} → {output_file}")
         
         # Log just filenames for info level (typically shows in console)
-        input_name = os.path.basename(input_file)
-        output_name = os.path.basename(output_file)
+        input_name = Path(input_file).name
+        output_name = Path(output_file).name
         self.logger.info(f"Converted: {input_name} → {output_name}")
     
     def _handle_exif_data(self, image, original_size=None):
@@ -154,24 +156,47 @@ class HeicConvert:
         
         return result
     
-    def convert_to_jpg(self, heic_file, args):
-        """Convert HEIC file to JPG."""
+    def _get_image_and_resize(self, heic_file, args):
+        """Get image from HEIC file."""
         try:
-            output_path = self._get_output_path(heic_file, ".jpg")
-            self.logger.debug(f"Converting {heic_file} to JPG (quality: {self.jpg_quality})")
+            # When opening with pillow-heif or other libraries, convert Path to string
+            heif_file = pillow_heif.open_heif(str(heic_file))  # Convert Path to string here
             
-            img = Image.open(heic_file)
-            original_size = img.size
-            
+            # Convert to PIL Image
+            image = Image.frombytes(
+                heif_file.mode, 
+                heif_file.size, 
+                heif_file.data,
+                "raw", 
+                heif_file.mode, 
+                0, 0
+            )
+
             # Apply resizing if args is provided
             if args:
-                img = self.resize_image(img, args)
+                image = self.resize_image(image, args)
             
+        except Exception as e:
+            self.logger.error(f"Error opening HEIC file: {e}")
+            return None
+        return image
+    
+    def convert_to_jpg(self, heic_file, args):
+        """Convert HEIC file to JPG format."""
+        # Ensure heic_file is a Path object
+        heic_file = Path(heic_file)
+        
+        try:
+            # Get output path for JPG
+            output_path = self._get_output_path(heic_file, ".jpg")
+            
+            heic_image = self._get_image_and_resize(heic_file, args)
+                       
             # Get and handle EXIF data
-            exif_info = self._handle_exif_data(img, original_size)
+            exif_info = self._handle_exif_data(heic_image, heic_image.size)
             
             # Save the image
-            img.save(output_path, format="JPEG", quality=self.jpg_quality)
+            heic_image.save(output_path, format="JPEG", quality=self.jpg_quality)
             
             # Insert EXIF data after saving
             if exif_info['exif_bytes']:
@@ -188,27 +213,24 @@ class HeicConvert:
 
     def convert_to_png(self, heic_file, args):
         """Convert HEIC file to PNG."""
+        
+        heic_file = Path(heic_file)
         try:
             output_path = self._get_output_path(heic_file, ".png")
             self.logger.debug(f"Converting {heic_file} to PNG")
             
-            img = Image.open(heic_file)
-            original_size = img.size
-            
-            # Apply resizing if args is provided
-            if args:
-                img = self.resize_image(img, args)
+            heic_image = self._get_image_and_resize(heic_file, args)
             
             # Get and handle EXIF data (just like in JPG conversion)
-            exif_info = self._handle_exif_data(img, original_size)
+            exif_info = self._handle_exif_data(heic_image, heic_image.size)
             
             # Use compression level from args if provided
             compression = args.png_compression if args else 6
-            img.save(output_path, format="PNG", compress_level=compression)
+            heic_image.save(output_path, format="PNG", compress_level=compression)
             
             # Add EXIF data to PNG using PngImagePlugin
             if exif_info['exif_bytes']:
-                # Method 1: Using pillow's built-in PNG metadata support
+                # Using pillow's built-in PNG metadata support
                 with open(output_path, 'rb+') as png_file:
                     img = Image.open(png_file)
                     meta = PngImagePlugin.PngInfo()
@@ -226,36 +248,31 @@ class HeicConvert:
             self.logger.error(f"Error converting {heic_file} to PNG: {str(e)}")
             return None
 
-    def convert_to_heic(self, image_file, args):
+    def convert_to_heic(self, heic_file, args):
         """Convert an image file to HEIC format."""
+
+        heic_file = Path(heic_file)
         try:
-            # Open the source image
-            image = Image.open(image_file)
-            original_size = image.size
+            output_path = self._get_output_path(heic_file, ".heic")
+            self.logger.debug(f"Converting {heic_file} to HEIC")
             
-            # Apply resizing if needed
-            if args:
-                image = self.resize_image(image, args)
-            
-            # Get and handle EXIF data
-            exif_info = self._handle_exif_data(image, original_size)
-            
+            heic_image = self._get_image_and_resize(heic_file, args)
+                        
             # Get output path
-            output_path = self._get_output_path(Path(image_file), '.heic')
+            output_path = self._get_output_path(Path(heic_image), '.heic')
             
             # Get quality setting from args
             quality = getattr(args, 'heic_quality', 90)
             
-            # Use the correct method for newer pillow-heif versions
-            heif = pillow_heif.from_pillow(image)
-            heif.save(output_path, quality=quality)  # Use save instead of to_bytes
+            heif = pillow_heif.from_pillow(heic_image)
+            heif.save(output_path, quality=quality)  
             
-            self._log_conversion(image_file, output_path)
+            self._log_conversion(heic_image, output_path)
             
             return output_path
         
         except FileExistsError:
             return None
         except Exception as e:
-            self.logger.error(f"Error converting {image_file} to HEIC: {str(e)}")
+            self.logger.error(f"Error converting {heic_image} to HEIC: {str(e)}")
             return None
