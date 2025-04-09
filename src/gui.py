@@ -8,6 +8,7 @@ import platform
 from src.converter import HeicConvert
 from src.main import setup_logging, validate_format_arguments
 from src.file_discovery import FileDiscovery
+from src.conversion_manager import perform_conversion
 import argparse
 import ctypes
 
@@ -201,6 +202,15 @@ class HEICConverterGUI:
                                           variable=self.recursive_var)
         recursive_check.grid(row=6, column=0, columnspan=3, padx=5, pady=5, sticky="w")
         
+        # Log file selection
+        ttk.Label(settings_frame, text="Log File:").grid(row=7, column=0, sticky="w", padx=5, pady=5)
+        self.log_file_var = tk.StringVar()
+        log_file_entry = ttk.Entry(settings_frame, textvariable=self.log_file_var)
+        log_file_entry.grid(row=7, column=1, padx=5, pady=5, sticky="ew") 
+        self.settings_widgets.append(log_file_entry)
+        browse_log_button = ttk.Button(settings_frame, text="Browse...", command=self.browse_log_file)
+        browse_log_button.grid(row=7, column=2, padx=5, pady=5)
+
         # Resize options
         resize_frame = ttk.LabelFrame(parent, text="Resize Options")
         resize_frame.pack(fill="x", padx=5, pady=5)
@@ -290,8 +300,17 @@ class HEICConverterGUI:
         if folder:
             self.output_var.set(folder)
     
+    def browse_log_file(self):
+        log_file = filedialog.asksaveasfilename(
+            title="Select Log File",
+            defaultextension=".log",
+            filetypes=[("Log Files", "*.log"), ("All Files", "*.*")]
+        )
+        if log_file:
+            self.log_file_var.set(log_file)
+    
     def log(self, message):
-        """Add message to the current log text widget."""
+        """Add message to the current log text widget and to the file logger."""
         # For file paths, try to extract just the filename for display
         display_message = message
         if '\\' in message or '/' in message:
@@ -304,6 +323,9 @@ class HEICConverterGUI:
         
         # Store in current log
         self.current_log.append(display_message)
+        
+        # Also log to the file logger
+        self.logger.info(message)
         
         # Update display
         self.log_text.insert(tk.END, display_message + "\n")
@@ -342,6 +364,12 @@ class HEICConverterGUI:
             messagebox.showerror("Error", "Source folder does not exist")
             return
         
+        # Build args object with current settings
+        args = self.build_args_object()
+    
+        # Re-configure logger with current log file setting
+        self.logger = setup_logging(args)
+
         # Clear current log and move to history before starting new conversion
         self.clear_current_log()
         
@@ -425,67 +453,60 @@ class HEICConverterGUI:
     def convert_files(self):
         """Actual conversion process that runs in a separate thread."""
         try:
+            # Get the output folder
+            output_folder = self.output_var.get() or os.path.join(self.source_var.get(), self.format_var.get())
+            
+            # Build args
+            args = self.build_args_object()
+            
+            # Create converter with current settings
+            heic_converter = HeicConvert(
+                output_dir=output_folder,
+                jpg_quality=args.jpg_quality,
+                existing_mode=args.existing
+            )
+            
             file_discoverer = FileDiscovery()
             heic_files = file_discoverer.find_heic_files(
                 self.source_var.get(), 
-                recursive=self.recursive_var.get()
+                recursive=args.recursive
             )
             
-            self.log(f"Found {len(heic_files)} HEIC/HEIF files")
-            
+            # No files found
             if not heic_files:
                 self.log("No HEIC files found in the selected directory.")
+                self.update_status("No HEIC files found")
                 return
             
-            total_files = len(heic_files)
-            conversion_counter = 0
+            self.log(f"Found {len(heic_files)} HEIC files to convert")
             
-            # Convert each file
-            for i, heic_file in enumerate(heic_files):
-                # Check if conversion was cancelled
-                if hasattr(self, 'conversion_cancelled') and self.conversion_cancelled:
-                    self.log("Conversion was cancelled by user")
-                    return
-                    
-                # Update progress
-                progress_pct = (i / total_files) * 100
-                self.progress_var.set(progress_pct)
-                self.root.update_idletasks()
-                
-                try:
-                    # Show which file we're processing
-                    self.log(f"Converting: {os.path.basename(heic_file)}")
-                    
-                    # Convert the file
-                    results = []
-                    if self.format_var.get() in ["jpg", "both"]:
-                        jpg_path = heic_converter.convert_to_jpg(heic_file)
-                        if jpg_path:
-                            results.append(jpg_path)
-                            self.log(f"  → Created: {os.path.basename(jpg_path)}")
-                            conversion_counter += 1
-                    
-                    if self.format_var.get() in ["png", "both"]:
-                        png_path = heic_converter.convert_to_png(heic_file)
-                        if png_path:
-                            results.append(png_path)
-                            self.log(f"  → Created: {os.path.basename(png_path)}")
-                            conversion_counter += 1
-                    
-                    if not results:
-                        self.log(f"  → Skipped (already exists)")
-                        
-                except Exception as e:
-                    self.log(f"Error converting {os.path.basename(heic_file)}: {str(e)}")
+            # Update progress bar and status
+            def update_progress(current, total):
+                progress = int((current / total) * 100)
+                self.progress_var.set(progress)
+                self.update_status(f"Converting file {current}/{total}")
             
-            # Update progress to 100% at the end
-            self.progress_var.set(100)
-            self.log(f"Conversion completed! {conversion_counter} files created.")
+            # Run the common conversion function
+            results = perform_conversion(heic_files, args, heic_converter, self.logger, update_progress)
+            
+            # Display summary
+            self.log(f"Conversion complete: {results['success_count']} files converted, {results['failure_count']} failed, {results['skipped_count']} skipped.")
+            self.log(f"Total original size: {results['total_original_size']:.2f} MB")
+            self.log(f"Total converted size: {results['total_converted_size']:.2f} MB")
+            
+            space_diff = results['space_diff']
+            if space_diff > 0:
+                self.log(f"Space saved: {space_diff:.2f} MB")
+            else:
+                self.log(f"Space increased: {-space_diff:.2f} MB")
+            
+            # Update status
+            self.update_status("Conversion complete")
             
         except Exception as e:
             self.log(f"Error during conversion: {str(e)}")
-            self.status_var.set("Error occurred")
-            messagebox.showerror("Error", f"An error occurred: {str(e)}")
+            self.update_status("Conversion failed")
+            messagebox.showerror("Error", f"An error occurred during conversion: {str(e)}")
 
     def build_args_object(self):
         """Build an argparse.Namespace object with GUI settings."""
@@ -501,7 +522,15 @@ class HEICConverterGUI:
         args.height = self.height_var.get() if self.height_var.get() > 0 else None
         args.recursive = self.recursive_var.get()
         
+        # Add log file path
+        args.log_file = self.log_file_var.get() if self.log_file_var.get() else None
+        
         return args
+
+    def update_status(self, message):
+        """Update the status label with a new message."""
+        self.status_var.set(message)
+        self.root.update_idletasks()
 
 if __name__ == "__main__":
     root = tk.Tk()

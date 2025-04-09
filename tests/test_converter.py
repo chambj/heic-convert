@@ -342,13 +342,22 @@ class TestHEICConverter:
         """Test that logging works correctly."""
         import logging
         caplog.set_level(logging.INFO)
-        
+
+        args = argparse.Namespace(
+            format="jpg", 
+            jpg_quality=80, 
+            png_compression=6,
+            resize=None,
+            width=None,
+            height=None
+        )
+                    
         converter = HeicConvert(output_dir=setup_test_files)
         heic_files = file_discoverer.find_heic_files(setup_test_files)
         
         if heic_files:
             try:
-                converter.convert_to_jpg(heic_files[0])
+                converter.convert_to_jpg(heic_files[0], args)
                 assert "Converted:" in caplog.text
             except:
                 # Even if conversion fails, there should be log messages

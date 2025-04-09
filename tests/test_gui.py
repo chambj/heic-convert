@@ -336,45 +336,57 @@ class TestHEICConverterGUI:
             assert file_size > 0, f"JPG file {jpg_file} is empty"
     
     def test_convert_files_uses_recursive_option(self, gui, test_files_dir):
-        # Double patch both HeicConvert and FileDiscovery
-        with patch('src.gui.HeicConvert') as mock_converter, \
-             patch('src.gui.FileDiscovery') as mock_discoverer:
-             
-            # Set up the mocks
+        # Mock the perform_conversion utility to avoid file access
+        with patch('src.gui.FileDiscovery') as mock_discoverer:
+            # Set up the file discoverer mock
             mock_discoverer_instance = MagicMock()
             mock_discoverer.return_value = mock_discoverer_instance
-            mock_discoverer_instance.find_heic_files.return_value = ['file1.heic', 'file2.heic']
-            
-            mock_converter_instance = MagicMock()
-            mock_converter.return_value = mock_converter_instance
+            mock_discoverer_instance.find_heic_files.return_value = []  # No files to avoid processing
             
             # Set up GUI options
             gui.source_var.set(test_files_dir["input_dir"])
             gui.output_var.set(test_files_dir["output_dir"])
-            gui.recursive_var.set(False)  # Testing the False case
             
-            # Run the conversion
+            # Test with recursive=False
+            gui.recursive_var.set(False)
             gui.convert_files()
             
-            # Verify FileDiscovery was called correctly with recursive=False
+            # Verify recursive=False was passed
             mock_discoverer_instance.find_heic_files.assert_called_with(
                 test_files_dir["input_dir"], 
                 recursive=False
             )
             
-            # Rest of the assertions...
+            # Test with recursive=True
+            mock_discoverer_instance.find_heic_files.reset_mock()
+            gui.recursive_var.set(True)
+            gui.convert_files()
+            
+            # Verify recursive=True was passed
+            mock_discoverer_instance.find_heic_files.assert_called_with(
+                test_files_dir["input_dir"], 
+                recursive=True
+            )
     
     def test_gui_end_to_end(self, tmpdir):
-        """Test the complete GUI workflow."""
+        """Test the complete GUI workflow with actual file conversion."""
         input_dir = tmpdir.mkdir("input")
         output_dir = tmpdir.mkdir("output")
         
-        # Create or find a test file
+        # Find a real HEIC file to test with
         test_data_dir = os.path.join(os.path.dirname(__file__), "test_data")
-        # ... existing code to find a test file ...
+        heic_files = [os.path.join(test_data_dir, f) for f in os.listdir(test_data_dir) 
+            if f.lower().endswith(('.heic', '.heif'))]
+        
+        if not heic_files:
+            pytest.skip("No HEIC files found in test_data directory")
+        
+        test_file = heic_files[0]  # Use the first available HEIC file
+        test_file_name = os.path.basename(test_file)
         
         # Copy the test file to the input directory
-        shutil.copy(test_file, str(input_dir))
+        input_file_path = os.path.join(str(input_dir), test_file_name)
+        shutil.copy(test_file, input_file_path)
         
         # Initialize GUI
         root = tk.Tk()
@@ -387,26 +399,8 @@ class TestHEICConverterGUI:
         app.jpg_quality_var.set(90)
         app.recursive_var.set(True)
         
-        # Mock both classes to avoid actual file operations during test
-        with patch('src.gui.HeicConvert') as mock_converter, \
-             patch('src.gui.FileDiscovery') as mock_discoverer, \
-             patch('src.gui.threading.Thread') as mock_thread:
-             
-            # Set up file discovery mock
-            mock_discoverer_instance = MagicMock()
-            mock_discoverer.return_value = mock_discoverer_instance
-            mock_discoverer_instance.find_heic_files.return_value = [os.path.join(str(input_dir), os.path.basename(test_file))]
-            
-            # Set up converter mock
-            mock_converter_instance = MagicMock()
-            mock_converter.return_value = mock_converter_instance
-            jpg_output = os.path.join(str(output_dir), os.path.basename(test_file).replace('.heic', '.jpg'))
-            mock_converter_instance.convert_to_jpg.return_value = jpg_output
-            
-            # Create the actual output file to pass assertions
-            with open(jpg_output, 'w') as f:
-                f.write("dummy jpg content")
-            
+        # Don't mock the converter - use the real one!
+        with patch('src.gui.threading.Thread') as mock_thread:
             # Make thread run synchronously 
             def run_target(*args, **kwargs):
                 if 'target' in kwargs:
@@ -414,10 +408,26 @@ class TestHEICConverterGUI:
                 return MagicMock()
             mock_thread.side_effect = run_target
             
-            # Trigger conversion
-            app.convert_files()
+            # Trigger conversion using real classes
+            app.start_conversion()
         
-        # Verify results
-        assert os.path.exists(jpg_output)
+        # Expected output file (should match how HeicConvert creates filenames)
+        expected_jpg = os.path.join(str(output_dir), test_file_name.replace('.heic', '.jpg').replace('.HEIC', '.jpg'))
+        
+        # Verify results more thoroughly
+        assert os.path.exists(expected_jpg), f"Output file not found: {expected_jpg}"
+        
+        # Verify it's a valid JPG by opening it
+        try:
+            from PIL import Image
+            img = Image.open(expected_jpg)
+            assert img.format == 'JPEG', "Output is not a valid JPEG"
+            assert img.width > 0 and img.height > 0, "Image has invalid dimensions"
+            
+            # Check file size is reasonable for an image
+            file_size = os.path.getsize(expected_jpg)
+            assert file_size > 1000, f"Suspiciously small file: {file_size} bytes"
+        except Exception as e:
+            assert False, f"Failed to validate JPG file: {str(e)}"
         
         root.destroy()

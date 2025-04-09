@@ -13,6 +13,7 @@ from src.converter import HeicConvert
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime
 from src.file_discovery import FileDiscovery
+from src.conversion_manager import perform_conversion
 
 # Initialize logger at module level
 logger = logging.getLogger("heic_convert")
@@ -25,7 +26,7 @@ console.setFormatter(logging.Formatter('%(message)s'))
 logger.addHandler(console)
 
 # Update the logging configuration
-def setup_logging(args):
+def setup_logging(args=None):
     """Configure logging with file handler if needed."""
     global logger
     
@@ -39,7 +40,7 @@ def setup_logging(args):
     logger.addHandler(console)
     
     # Add file handler if log file specified
-    if args.log_file:
+    if args and args.log_file:
         try:
             log_dir = os.path.dirname(args.log_file)
             if log_dir:
@@ -156,104 +157,42 @@ def main():
         
         logger.info(f"Found {len(heic_files)} HEIC files to convert")
         
-        success_count = 0
-        failure_count = 0
-        skipped_count = 0
-        converted_files = []
-        skipped_files = []  # New list to track skipped files
-
-        # Convert files with progress bar
-        for heic_file in tqdm(heic_files, desc="Converting", unit="file"):
-            try:
-                heic_size = Path(heic_file).stat().st_size / (1024 * 1024)
-                logger.debug(f"Converting file: {heic_file} ({heic_size:.2f} MB)")
-                
-                file_converted = False
-                file_skipped = False
-                
-                if args.format in ["png", "both"]:
-                    png_path = heic_converter.convert_to_png(heic_file, args)
-                    if png_path:  # File was actually converted
-                        png_size = Path(png_path).stat().st_size / (1024 * 1024)
-                        logger.debug(f"PNG size: {png_size:.2f} MB")
-                        converted_files.append(png_path)
-                        file_converted = True
-                    else:
-                        # File was skipped due to existing=fail
-                        file_skipped = True
-                        skipped_count += 1
-                
-                if args.format in ["jpg", "both"]:
-                    jpg_path = heic_converter.convert_to_jpg(heic_file, args)
-                    if jpg_path:  # File was actually converted
-                        jpg_size = Path(jpg_path).stat().st_size / (1024 * 1024)
-                        logger.debug(f"JPG size: {jpg_size:.2f} MB")
-                        converted_files.append(jpg_path)
-                        file_converted = True
-                    else:
-                        # Only count as skipped if we haven't already counted it
-                        if args.format != "both" or not file_converted:
-                            file_skipped = True
-                            skipped_count += 1
-                
-                if args.format in ["heic"]:
-                    heic_path = heic_converter.convert_to_heic(heic_file, args)
-                    if heic_path:  # File was actually converted
-                        heic_size = Path(heic_path).stat().st_size / (1024 * 1024)
-                        logger.debug(f"HEIC size: {heic_size:.2f} MB")
-                        converted_files.append(heic_path)
-                        file_converted = True
-                    else:
-                        # Only count as skipped if we haven't already counted it
-                        if not file_converted:
-                            file_skipped = True
-                            skipped_count += 1
-                
-                # If file was skipped, add to skipped files list
-                if file_skipped and not file_converted:
-                    skipped_files.append(heic_file)  # Store full path instead of basename
-                    
-                # Only count as success if at least one conversion succeeded
-                if file_converted:
-                    success_count += 1
-                    
-            except Exception as e:
-                logger.error(f"Failed to convert {heic_file}: {str(e)}")
-                failure_count += 1
-                continue
+        # Use the common conversion function with a progress wrapper for tqdm
+        def tqdm_progress(i, total):
+            # This function does nothing - tqdm handles its own progress
+            pass
+        
+        results = perform_conversion(heic_files, args, heic_converter, logger, tqdm_progress)
         
         # Display conversion summary
-        total_original_size = sum(Path(f).stat().st_size for f in heic_files) / (1024 * 1024)
-        total_converted_size = sum(Path(f).stat().st_size for f in converted_files) / (1024 * 1024)
-
         logger.info("Conversion summary:")
         logger.info(f"  Files processed: {len(heic_files)}")
-        logger.info(f"  Successfully converted: {success_count}")
-        logger.info(f"  Skipped (already exist): {skipped_count}")
-        logger.info(f"  Failed: {failure_count}")
-        logger.info(f"  Total original size: {total_original_size:.2f} MB")
-        logger.info(f"  Total converted size: {total_converted_size:.2f} MB")
+        logger.info(f"  Successfully converted: {results['success_count']}")
+        logger.info(f"  Skipped (already exist): {results['skipped_count']}")
+        logger.info(f"  Failed: {results['failure_count']}")
+        logger.info(f"  Total original size: {results['total_original_size']:.2f} MB")
+        logger.info(f"  Total converted size: {results['total_converted_size']:.2f} MB")
 
-        space_diff = total_original_size - total_converted_size
+        space_diff = results['space_diff']
         if space_diff > 0:
             logger.info(f"  Space saved: {space_diff:.2f} MB")
         else:
             logger.info(f"  Space increased: {-space_diff:.2f} MB")
 
-        if skipped_count > 0:
+        if results['skipped_count'] > 0:
             if args.existing == "fail":
-                logger.info(f"\nNote: {skipped_count} files were skipped because output files already exist.")
+                logger.info(f"\nNote: {results['skipped_count']} files were skipped because output files already exist.")
                 logger.info("Use --existing rename or --existing overwrite to handle existing files differently.")
                 
                 # Show list of skipped files (display up to 10 files to avoid excessive output)
                 max_display = 10
-                if skipped_files:
+                if results['skipped_files']:
                     logger.info("\nSkipped files:")
-                    for i, file in enumerate(skipped_files[:max_display]):
+                    for i, file in enumerate(results['skipped_files'][:max_display]):
                         logger.info(f"  - {file}")  # This will now show the full path
                     
-                    if len(skipped_files) > max_display:
-                        logger.info(f"  ... and {len(skipped_files) - max_display} more files")
+                    if len(results['skipped_files']) > max_display:
+                        logger.info(f"  ... and {len(results['skipped_files']) - max_display} more files")
         
         return 0
     
