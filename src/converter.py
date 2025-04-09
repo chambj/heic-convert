@@ -1,9 +1,10 @@
 import os
 import logging
 from pathlib import Path
-from PIL import Image
+from PIL import Image, PngImagePlugin
 import pillow_heif
 import piexif
+from io import BytesIO
 
 # Register HEIF opener with Pillow
 pillow_heif.register_heif_opener()
@@ -111,6 +112,48 @@ class HeicConvert:
         output_name = os.path.basename(output_file)
         self.logger.info(f"Converted: {input_name} → {output_name}")
     
+    def _handle_exif_data(self, image, original_size=None):
+        """Extract and process EXIF data from an image."""
+        result = {'exif_data': None, 'exif_bytes': None}
+        
+        # Extract EXIF data from original image
+        if hasattr(image, "info") and "exif" in image.info:
+            try:
+                exif_data = image.info["exif"]
+                result['exif_bytes'] = exif_data
+                
+                # If resized, update dimension-related EXIF data
+                if original_size and image.size != original_size:
+                    try:
+                        # Load and validate EXIF dict
+                        exif_dict = piexif.load(exif_data)
+                        
+                        if exif_dict is None:
+                            self.logger.debug("No valid EXIF data found to update")
+                            return result
+                        
+                        # Update dimensions if 0th IFD exists
+                        if "0th" in exif_dict:
+                            # Use try/except for each tag update
+                            try:
+                                exif_dict["0th"][piexif.ImageIFD.ImageWidth] = image.width
+                                exif_dict["0th"][piexif.ImageIFD.ImageLength] = image.height
+                                result['exif_bytes'] = piexif.dump(exif_dict)
+                            except KeyError as e:
+                                self.logger.debug(f"EXIF tag not found: {e}")
+                        else:
+                            self.logger.debug("EXIF data has no '0th' IFD section")
+                    except Exception as e:
+                        # Less noisy - change to debug level
+                        self.logger.debug(f"Could not update EXIF dimensions: {e}")
+                
+            except Exception as e:
+                self.logger.debug(f"Error processing EXIF data: {e}")
+        else:
+            self.logger.debug("No EXIF data found in image")
+        
+        return result
+    
     def convert_to_jpg(self, heic_file, args):
         """Convert HEIC file to JPG."""
         try:
@@ -118,24 +161,26 @@ class HeicConvert:
             self.logger.debug(f"Converting {heic_file} to JPG (quality: {self.jpg_quality})")
             
             img = Image.open(heic_file)
+            original_size = img.size
             
             # Apply resizing if args is provided
             if args:
                 img = self.resize_image(img, args)
             
-            # Add EXIF data if available
-            exif_data = img.info.get("exif") if hasattr(img, "info") else None
-            if exif_data is not None:
-                piexif.insert(exif_data, output_path)
+            # Get and handle EXIF data
+            exif_info = self._handle_exif_data(img, original_size)
             
+            # Save the image
             img.save(output_path, format="JPEG", quality=self.jpg_quality)
+            
+            # Insert EXIF data after saving
+            if exif_info['exif_bytes']:
+                piexif.insert(exif_info['exif_bytes'], output_path)
             
             self._log_conversion(heic_file, output_path)
             
-            self.logger.debug(f"Saved JPG to {output_path}")
             return output_path
         except FileExistsError:
-            # This is an expected condition when mode="fail", so just return None
             return None
         except Exception as e:
             self.logger.error(f"Error converting {heic_file} to JPG: {str(e)}")
@@ -148,19 +193,69 @@ class HeicConvert:
             self.logger.debug(f"Converting {heic_file} to PNG")
             
             img = Image.open(heic_file)
+            original_size = img.size
             
             # Apply resizing if args is provided
             if args:
                 img = self.resize_image(img, args)
             
+            # Get and handle EXIF data (just like in JPG conversion)
+            exif_info = self._handle_exif_data(img, original_size)
+            
             # Use compression level from args if provided
             compression = args.png_compression if args else 6
             img.save(output_path, format="PNG", compress_level=compression)
             
+            # Add EXIF data to PNG using PngImagePlugin
+            if exif_info['exif_bytes']:
+                # Method 1: Using pillow's built-in PNG metadata support
+                with open(output_path, 'rb+') as png_file:
+                    img = Image.open(png_file)
+                    meta = PngImagePlugin.PngInfo()
+                    meta.add(b'eXIf', exif_info['exif_bytes'])
+                    img.save(png_file, format="PNG", pnginfo=meta)
+
             self._log_conversion(heic_file, output_path)
             
             self.logger.debug(f"Saved PNG to {output_path}")
             return output_path
+        
+        except FileExistsError:
+            return None
         except Exception as e:
-            self.logger.debug(f"Error converting {heic_file} to PNG: {str(e)}")
-            raise
+            self.logger.error(f"Error converting {heic_file} to PNG: {str(e)}")
+            return None
+
+    def convert_to_heic(self, image_file, args):
+        """Convert an image file to HEIC format."""
+        try:
+            # Open the source image
+            image = Image.open(image_file)
+            original_size = image.size
+            
+            # Apply resizing if needed
+            if args:
+                image = self.resize_image(image, args)
+            
+            # Get and handle EXIF data
+            exif_info = self._handle_exif_data(image, original_size)
+            
+            # Get output path
+            output_path = self._get_output_path(Path(image_file), '.heic')
+            
+            # Get quality setting from args
+            quality = getattr(args, 'heic_quality', 90)
+            
+            # Use the correct method for newer pillow-heif versions
+            heif = pillow_heif.from_pillow(image)
+            heif.save(output_path, quality=quality)  # Use save instead of to_bytes
+            
+            self._log_conversion(image_file, output_path)
+            
+            return output_path
+        
+        except FileExistsError:
+            return None
+        except Exception as e:
+            self.logger.error(f"Error converting {image_file} to HEIC: {str(e)}")
+            return None
