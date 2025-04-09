@@ -16,13 +16,15 @@ class FileDiscovery:
         
         # Use a case-insensitive approach with set() to deduplicate
         if recursive:
-            # Only use lowercase patterns and convert to a set to remove duplicates
-            heic_files = set(folder_path.rglob("*.heic")) | set(folder_path.rglob("*.heif"))
+            # Search for both uppercase and lowercase extensions
+            heic_files = set(folder_path.rglob("*.heic")) | set(folder_path.rglob("*.HEIC")) | \
+                         set(folder_path.rglob("*.heif")) | set(folder_path.rglob("*.HEIF"))
             # Convert back to list
             heic_files = list(heic_files)
         else:
             # Same for non-recursive search
-            heic_files = set(folder_path.glob("*.heic")) | set(folder_path.glob("*.heif"))
+            heic_files = set(folder_path.glob("*.heic")) | set(folder_path.glob("*.HEIC")) | \
+                         set(folder_path.glob("*.heif")) | set(folder_path.glob("*.HEIF"))
             # Convert back to list
             heic_files = list(heic_files)
         

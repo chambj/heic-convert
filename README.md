@@ -1,6 +1,6 @@
 # HEIC to PNG/JPG Converter
 
-This project is a Python application that scans a specified folder for HEIC image files and converts them to PNG or JPG formats while preserving quality and minimizing file size.
+This project is a Python application that scans a specified folder for HEIC image files and converts them to PNG or JPG formats while preserving quality and minimizing file size. Its only been tested on Windows.
 
 ## Features
 
