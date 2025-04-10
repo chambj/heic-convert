@@ -39,7 +39,7 @@ def perform_conversion(heic_files, args, heic_converter, logger, progress_callba
             file_converted = False
             file_skipped = False
             
-            if args.format in ["png", "both"]:
+            if args.format == "png":
                 png_path = heic_converter.convert_to_png(heic_file, args)
                 if png_path:  # File was actually converted
                     png_size = Path(png_path).stat().st_size / (1024 * 1024)
@@ -51,7 +51,7 @@ def perform_conversion(heic_files, args, heic_converter, logger, progress_callba
                     file_skipped = True
                     skipped_count += 1
             
-            if args.format in ["jpg", "both"]:
+            if args.format == "jpg":
                 jpg_path = heic_converter.convert_to_jpg(heic_file, args)
                 if jpg_path:  # File was actually converted
                     jpg_size = Path(jpg_path).stat().st_size / (1024 * 1024)
@@ -59,10 +59,8 @@ def perform_conversion(heic_files, args, heic_converter, logger, progress_callba
                     converted_files.append(jpg_path)
                     file_converted = True
                 else:
-                    # Only count as skipped if we haven't already counted it
-                    if args.format != "both" or not file_converted:
-                        file_skipped = True
-                        skipped_count += 1
+                    file_skipped = True
+                    skipped_count += 1
             
             if args.format in ["heic"]:
                 heic_path = heic_converter.convert_to_heic(heic_file, args)
@@ -72,10 +70,8 @@ def perform_conversion(heic_files, args, heic_converter, logger, progress_callba
                     converted_files.append(heic_path)
                     file_converted = True
                 else:
-                    # Only count as skipped if we haven't already counted it
-                    if not file_converted:
-                        file_skipped = True
-                        skipped_count += 1
+                    file_skipped = True
+                    skipped_count += 1
             
             # If file was skipped, add to skipped files list
             if file_skipped and not file_converted:

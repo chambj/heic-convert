@@ -62,7 +62,7 @@ def parse_arguments(parser):
     parser.add_argument("--folder", "-f", help="Folder path containing HEIC files to convert")
     parser.add_argument("--output", "-o", 
                         help="Output folder path for converted images (default: creates a subfolder named after the format in the source folder)")
-    parser.add_argument("--format", "-t", choices=["png", "jpg", "heic", "both"], default="jpg",
+    parser.add_argument("--format", "-t", choices=["png", "jpg", "heic"], default="jpg",
                         help="Target format: png, jpg, heic. HEIC is experimental. (default: jpg)")
     parser.add_argument("--jpg-quality", "-q", type=int, default=90, 
                         help="JPEG quality (1-100, default: 90)")

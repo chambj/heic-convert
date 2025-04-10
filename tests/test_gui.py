@@ -227,7 +227,7 @@ class TestHEICConverterGUI:
         args = gui.build_args_object()
         assert args.recursive == False
     
-    @pytest.mark.parametrize("test_format", ["jpg", "png", "both"])
+    @pytest.mark.parametrize("test_format", ["jpg", "png", "heic"])
     def test_format_selection(self, gui, test_format):
         """Test different format selections."""
         gui.format_var.set(test_format)

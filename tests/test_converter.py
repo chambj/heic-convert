@@ -294,48 +294,6 @@ class TestHEICConverter:
         with pytest.raises(Exception):
             converter.convert_to_jpg(fake_heic)
 
-    def test_both_formats_conversion(self, setup_test_files, file_discoverer, tmpdir):
-        """Test converting a file to both JPG and PNG."""
-        # Use a temporary output directory to avoid file conflicts
-        output_dir = str(tmpdir.join("output"))
-        os.makedirs(output_dir, exist_ok=True)
-        
-        converter = HeicConvert(output_dir=output_dir)
-        heic_files = file_discoverer.find_heic_files(setup_test_files)
-        
-        if heic_files:
-            # Create args for the test with ALL required attributes
-            args = argparse.Namespace(
-                format="both", 
-                jpg_quality=80, 
-                png_compression=6,
-                resize=None,
-                width=None,
-                height=None
-            )
-            
-            # Make a copy of the HEIC file to avoid file locking issues
-            test_file = os.path.join(output_dir, "test.heic")
-            shutil.copy2(heic_files[0], test_file)
-            
-            # Convert to JPG first and ensure it's closed
-            jpg_path = converter.convert_to_jpg(test_file, args)
-            if jpg_path and os.path.exists(jpg_path):
-                try:
-                    img = Image.open(jpg_path)
-                    img.close()
-                except:
-                    pass
-            
-            # Then convert to PNG
-            png_path = converter.convert_to_png(test_file, args)
-            
-            assert jpg_path is not None
-            assert png_path is not None
-            assert os.path.exists(jpg_path)
-            assert os.path.exists(png_path)
-            assert Path(jpg_path).suffix == '.jpg'
-            assert Path(png_path).suffix == '.png'
 
     def test_logging(self, setup_test_files, caplog, file_discoverer):
         """Test that logging works correctly."""
