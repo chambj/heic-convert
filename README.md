@@ -222,7 +222,7 @@ python -m src.main --folder "C:\Users\Photos\iPhone" --log-file "conversion.log"
 
 2. **Create executable**
    ```
-   pyinstaller heic_convert.spec
+   python package_all.py
    ```
    
 3. **Create installer** (optional)
