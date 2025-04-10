@@ -1,7 +1,7 @@
 import os
 import logging
 from pathlib import Path
-from PIL import Image, PngImagePlugin
+from PIL import Image, PngImagePlugin, ImageOps
 import pillow_heif
 import piexif
 from io import BytesIO
@@ -12,17 +12,26 @@ pillow_heif.register_heif_opener()
 class HeicConvert:
     """Class responsible for converting HEIC/HEIF files to other formats."""
     
-    def __init__(self, output_dir=None, jpg_quality=90, existing_mode="rename"):
+    def __init__(self, output_dir=None, jpg_quality=90, png_compression=6, heic_quality=90, resampling_filter = Image.Resampling.LANCZOS, existing_mode="rename"):
         """Initialize the HEIC converter."""
         # Validate inputs
         if jpg_quality < 1 or jpg_quality > 100:
             raise ValueError(f"JPEG quality must be between 1-100, got {jpg_quality}")
+        
+        if png_compression < 0 or png_compression > 9:
+            raise ValueError(f"PNG compression must be between 0-9, got {png_compression}")
+        
+        if heic_quality < 1 or heic_quality > 100:
+            raise ValueError(f"HEIC quality must be between 1-100, got {heic_quality}")
         
         if existing_mode not in ["rename", "overwrite", "fail"]:
             raise ValueError(f"Invalid existing_mode: {existing_mode}. Must be 'rename', 'overwrite', or 'fail'")
         
         self.output_dir = output_dir
         self.jpg_quality = jpg_quality
+        self.png_compression = png_compression
+        self.heic_quality = heic_quality
+        self.resampling_filter = resampling_filter
         self.existing_mode = existing_mode
         self.logger = logging.getLogger(__name__)
     
@@ -33,11 +42,15 @@ class HeicConvert:
         
         if self.output_dir:
             # Make sure output_dir is a Path object
-            output_dir = Path(self.output_dir) if not isinstance(self.output_dir, Path) else self.output_dir
+            output_dir = Path(self.output_dir)
             os.makedirs(output_dir, exist_ok=True)
             output_path = output_dir / output_filename
         else:
+            # this is a fallback if output_dir is not set
+            # Create a subfolder in the input directory named after the format
+            # should not be hit cause of the check that the arg output_dir is set in main
             output_path = input_path.parent / output_filename
+            self.logger.warning(f"Output directory not set, using input directory: {output_path}")
         
         # Handle existing files based on chosen mode
         if Path(output_path).exists():
@@ -67,7 +80,7 @@ class HeicConvert:
     
     def resize_image(self, img, args):
         """Resize image based on provided arguments."""
-        original_width, original_height = img.size
+
         resize_options = 0
         
         # Count how many resize options were specified
@@ -85,22 +98,16 @@ class HeicConvert:
         # Apply resize with the established priority
         if args.resize:
             # Resize by percentage
-            percentage = max(1, min(100, args.resize)) / 100
-            new_width = int(original_width * percentage)
-            new_height = int(original_height * percentage)
-            return img.resize((new_width, new_height), Image.LANCZOS)
+            percentage = args.resize / 100
+            return ImageOps.scale(img, percentage, self.resampling_filter)
         
         elif args.width:
             # Resize by width, maintain aspect ratio
-            ratio = args.width / original_width
-            new_height = int(original_height * ratio)
-            return img.resize((args.width, new_height), Image.LANCZOS)
-        
+            return ImageOps.contain(img, (args.width, 100000000), self.resampling_filter)
+
         elif args.height:
             # Resize by height, maintain aspect ratio
-            ratio = args.height / original_height
-            new_width = int(original_width * ratio)
-            return img.resize((new_width, args.height), Image.LANCZOS)
+            return ImageOps.contain(img, (100000000, args.height), self.resampling_filter)
         
         return img  # No resizing if no arguments provided
     
@@ -136,7 +143,6 @@ class HeicConvert:
                         
                         # Update dimensions if 0th IFD exists
                         if "0th" in exif_dict:
-                            # Use try/except for each tag update
                             try:
                                 exif_dict["0th"][piexif.ImageIFD.ImageWidth] = image.width
                                 exif_dict["0th"][piexif.ImageIFD.ImageLength] = image.height
@@ -205,6 +211,7 @@ class HeicConvert:
             self._log_conversion(heic_file, output_path)
             
             return output_path
+        
         except FileExistsError:
             return None
         except Exception as e:
@@ -224,9 +231,7 @@ class HeicConvert:
             # Get and handle EXIF data (just like in JPG conversion)
             exif_info = self._handle_exif_data(heic_image, heic_image.size)
             
-            # Use compression level from args if provided
-            compression = args.png_compression if args else 6
-            heic_image.save(output_path, format="PNG", compress_level=compression)
+            heic_image.save(output_path, format="PNG", compress_level=self.png_compression)
             
             # Add EXIF data to PNG using PngImagePlugin
             if exif_info['exif_bytes']:
@@ -261,11 +266,8 @@ class HeicConvert:
             # Get output path
             output_path = self._get_output_path(Path(heic_image), '.heic')
             
-            # Get quality setting from args
-            quality = getattr(args, 'heic_quality', 90)
-            
             heif = pillow_heif.from_pillow(heic_image)
-            heif.save(output_path, quality=quality)  
+            heif.save(output_path, quality=self.heic_quality)  
             
             self._log_conversion(heic_image, output_path)
             

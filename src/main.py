@@ -15,6 +15,7 @@ from datetime import datetime
 from src.file_discovery import FileDiscovery
 from src.conversion_manager import perform_conversion
 from src.version import VERSION
+from PIL import Image
 
 
 # Initialize logger at module level
@@ -62,7 +63,7 @@ def parse_arguments(parser):
     parser.add_argument("--output", "-o", 
                         help="Output folder path for converted images (default: creates a subfolder named after the format in the source folder)")
     parser.add_argument("--format", "-t", choices=["png", "jpg", "heic", "both"], default="jpg",
-                        help="Target format: png, jpg, heic, or both (saves as png and jpg). HEIC is experimental. (default: jpg)")
+                        help="Target format: png, jpg, heic. HEIC is experimental. (default: jpg)")
     parser.add_argument("--jpg-quality", "-q", type=int, default=90, 
                         help="JPEG quality (1-100, default: 90)")
     parser.add_argument("--png-compression", type=int, default=6, choices=range(10),
@@ -76,6 +77,10 @@ def parse_arguments(parser):
                         help="Recursively search for HEIC files in subdirectories")
     parser.add_argument('--version', action='version', 
                        version=f'HEIC Converter v{VERSION}')
+    parser.add_argument("--resampling_filter",  
+                        choices=["nearest", "box", "bilinear", "hamming", "bicubic", "lanczos"],
+                        default="lanczos",
+                        help="Resampling filter for resizing. lanczoz is best but slowest. bicubic is a good option too. (default: lanczos)")
     
     
     resize_group = parser.add_mutually_exclusive_group()
@@ -102,6 +107,28 @@ def validate_format_arguments(args):
     
     return args
 
+def process_filter_args(args):
+    """Process filter arguments and set resize dimensions."""
+
+    if args.resampling_filter:
+        filter_map = {
+            'nearest': Image.Resampling.NEAREST,
+            'box': Image.Resampling.BOX,
+            'bilinear': Image.Resampling.BILINEAR,
+            'hamming': Image.Resampling.HAMMING,
+            'bicubic': Image.Resampling.BICUBIC,
+            'lanczos': Image.Resampling.LANCZOS,
+        }
+        resampling_filter = filter_map.get(
+            args.resampling_filter.lower(), 
+            Image.Resampling.LANCZOS
+            )
+    else:
+        # Default to LANCZOS if not specified
+        resampling_filter = Image.Resampling.LANCZOS
+
+    return resampling_filter
+
 def check_system_resources():
     """Check if system has enough resources to continue."""
     import psutil
@@ -121,7 +148,6 @@ def main():
         parser.print_help()
         sys.exit("Error: folder and output are required.")
 
-    # Configure logger early
     setup_logging(args)
     logger.info(f"HEIC Converter v{VERSION}")
     
@@ -132,10 +158,9 @@ def main():
         # Set default output directory as a subdirectory of the source
         args.output = str(Path(args.folder) / args.format)
     else:
-        # Only convert to absolute path if not None
         args.output = Path(args.output).absolute()
 
-    
+    args.resampling_filter = process_filter_args(args)
     
     # Now validate arguments (after logger is set up)
     validate_format_arguments(args)
@@ -151,16 +176,13 @@ def main():
         logger.error(f"The specified path '{args.folder}' is not a valid directory.")
         return 1
 
-    # Create file discoverer and converter
     file_discoverer = FileDiscovery()
-    heic_converter = HeicConvert(output_dir=args.output, jpg_quality=args.jpg_quality, 
-                                   existing_mode=args.existing)
+    heic_converter = HeicConvert(output_dir=args.output, jpg_quality=args.jpg_quality, png_compression=args.png_compression, 
+                                 heic_quality=args.heic_quality, resampling_filter=args.resampling_filter ,existing_mode=args.existing)
     
     try:
         # Find HEIC files
-        heic_files = file_discoverer.find_heic_files(args.folder, recursive=args.recursive)
-        logger.info(f"Found {len(heic_files)} HEIC/HEIF files")
-        
+        heic_files = file_discoverer.find_heic_files(args.folder, recursive=args.recursive)        
         if not heic_files:
             logger.error("No HEIC files found in the specified directory.")
             return 0
