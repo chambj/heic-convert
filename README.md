@@ -1,11 +1,12 @@
 # HEIC to PNG/JPG Converter
 
-This project is a Python application that scans a specified folder for HEIC image files and converts them to PNG or JPG formats while preserving quality and minimizing file size.
+This project is a Python application that scans a specified folder for HEIC image files and converts them to PNG or JPG formats while preserving quality and minimizing file size. Its only been tested on Windows.
 
 ## Features
 
-- Convert HEIC/HEIF files to PNG and/or JPG formats
-- Adjustable JPG quality settings
+- Convert HEIC/HEIF files to PNG and/or JPG or HEIC formats 
+- Recursive directory searching for batch processing
+- Adjustable quality settings
 - Progress tracking for batch conversions
 - Size comparison between original and converted files
 - Detailed logging
@@ -30,9 +31,10 @@ The GUI provides an intuitive interface for converting HEIC images without using
    - Click **Browse** next to "Output Folder" to select where converted files will be saved (optional; defaults to a subfolder named after the chosen format).
 
 3. **Choose Conversion Settings**:
-   - Select the desired output format (JPG, PNG, or Both).
-   - Adjust JPG quality and PNG compression settings as needed.
+   - Select the desired output format (JPG, PNG, HEIC, or Both). Both means JPG and PNG
+   - Adjust JPG quality, PNG compression, and HEIC quality settings as needed.
    - Choose how to handle existing files (rename, overwrite, or fail).
+   - Enable "Search subdirectories recursively" to process nested folders.
 
 4. **Start Conversion**:
    - Click **Convert Files** to begin processing.
@@ -51,10 +53,11 @@ heic-convert [OPTIONS]
 Options:
 - `--folder`, `-f`: Folder path containing HEIC files (required)
 - `--output`, `-o`: Output folder for converted images (optional)
-- `--format`, `-t`: Target format: png, jpg, or both (default: jpg)
+- `--format`, `-t`: Target format: png, jpg, heic, or both (both emits png and jpg) (default: jpg)
 - `--jpg-quality`, `-q`: JPEG quality (1-100, default: 90)
 - `--png-compression`: PNG compression level (0-9, default: 6)
 - `--existing`, `-e`: How to handle existing files: rename (add number), overwrite, or fail (default: fail)
+- `--recursive`, `-r`: Recursively search for files in subdirectories
 - `--resize`: Resize image by percentage (e.g., 50 for 50%) (optional)
 - `--width`: Resize image to specific width (maintaining aspect ratio) (optional)
 - `--height`: Resize image to specific height (maintaining aspect ratio) (optional)
@@ -76,6 +79,9 @@ heic-convert --folder "c:\path\to\heics" --output "c:\output" --existing rename
 
 # Convert all HEIC files in a folder to PNG
 heic-convert --folder "c:\path\to\heics" --format png
+
+# Convert all HEIC files in a folder and its subdirectories
+heic-convert --folder "c:\path\to\heics" --recursive
 
 ```
 
@@ -120,12 +126,16 @@ venv\Scripts\activate
 
 ### Installing Dependencies
 
-Requirements include:
+for usage:
 pillow>=9.0.0
 pillow-heif>=0.10.0
 tqdm>=4.62.0
 psutil>=5.9.0
+piexif>=1.1.3
+
+for development
 pytest>=7.0.0
+pytest-cov>=2.12.1
 
 Once the virtual environment is activated, install the required packages:
 
@@ -133,11 +143,23 @@ Once the virtual environment is activated, install the required packages:
 pip install -r requirements.txt
 ```
 
+or
+
+```bash
+pip install -r requirements-dev.txt
+```
+
+
 ### Usage Examples
 
 Convert all HEIC files in a folder to JPG:
 ```bash
 python -m src.main --folder "C:\Users\Photos\iPhone"
+```
+
+Convert all HEIC files in a folder and its subfolders to JPG:
+```bash
+python -m src.main --folder "C:\Users\Photos" --recursive
 ```
 
 Convert all HEIC files in a folder to both PNG and JPG:
@@ -260,7 +282,7 @@ pytest tests/test_gui.py -v
 
 ## License
 
-This project is licensed under the MIT License - see the LICENSE file for details.
+This project is licensed under the MIT License - see the LICENSE file for details. Additional terms you must agree to in order to use this project are included in terms.md.
 
 
 ## Contributing

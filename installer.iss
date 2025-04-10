@@ -1,5 +1,5 @@
 #define MyAppName "HEIC Convert"
-#define MyAppVersion "0.2.0"
+#define MyAppVersion "0.2.1"
 #define MyAppPublisher "Jacques C"
 #define MyAppURL "https://github.com/chambj/heic-convert"
 #define MyAppExeName "heic-convert-gui.exe"
