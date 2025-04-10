@@ -156,13 +156,7 @@ class HEICConverterGUI:
         browse_output_button = ttk.Button(settings_frame, text="Browse...", command=self.browse_output)
         browse_output_button.grid(row=1, column=2, padx=5, pady=5)
         self.settings_widgets.append(browse_output_button)
-        
-        # Add explanation label
-        output_info = ttk.Label(settings_frame, 
-                                text="If left empty, images will be saved in a subfolder of the source directory",
-                                font=("", 8), foreground="gray")
-        output_info.grid(row=2, column=1, padx=5, pady=(0, 5), sticky="w")
-        
+                
         # Configure column weights to allow horizontal expansion
         settings_frame.columnconfigure(1, weight=1)
 
@@ -177,9 +171,6 @@ class HEICConverterGUI:
         png_radio = ttk.Radiobutton(format_frame, text="PNG", variable=self.format_var, value="png")
         png_radio.pack(side="left", padx=5)
         self.settings_widgets.append(png_radio)
-        both_radio = ttk.Radiobutton(format_frame, text="JPG & PNG", variable=self.format_var, value="both")
-        both_radio.pack(side="left", padx=5)
-        self.settings_widgets.append(both_radio)
         heic_radio = ttk.Radiobutton(format_frame, text="HEIC", variable=self.format_var, value="heic")
         heic_radio.pack(side="left", padx=5)
         self.settings_widgets.append(heic_radio)

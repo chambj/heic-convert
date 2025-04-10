@@ -294,6 +294,58 @@ class TestHEICConverter:
         with pytest.raises(Exception):
             converter.convert_to_jpg(fake_heic)
 
+    def test_convert_to_heic(self, setup_test_files, file_discoverer):
+        """Test converting an image to HEIC format."""
+        # Setup a converter with output to a temp dir
+        converter = HeicConvert(output_dir=setup_test_files)
+        
+        # Find test files
+        source_files = file_discoverer.find_heic_files(setup_test_files)
+        assert len(source_files) > 0
+        
+        # Create args with required parameters
+        args = argparse.Namespace(
+            format="heic", 
+            heic_quality=85,
+            resize=50,  # Test with resize
+            width=None,
+            height=None
+        )
+        
+        # Convert to HEIC
+        try:
+            output_path = converter.convert_to_heic(source_files[0], args)
+            assert output_path is not None
+            assert Path(output_path).exists()
+            assert output_path.suffix == '.heic'
+            
+            # Check file size (should be non-zero)
+            assert Path(output_path).stat().st_size > 0
+        except Exception as e:
+            assert False, f"HEIC conversion failed with error: {str(e)}"
+
+    def test_heic_resize_options(self, setup_test_files, file_discoverer):
+        """Test different resize options when converting to HEIC."""
+        converter = HeicConvert(output_dir=setup_test_files)
+        source_files = file_discoverer.find_heic_files(setup_test_files)
+        
+        # Test different resize options
+        resize_options = [
+            {"resize": 25, "width": None, "height": None},
+            {"resize": None, "width": 320, "height": None},
+            {"resize": None, "width": None, "height": 240}
+        ]
+        
+        for opts in resize_options:
+            args = argparse.Namespace(
+                format="heic",
+                heic_quality=90,
+                **opts
+            )
+            
+            output = converter.convert_to_heic(source_files[0], args)
+            assert output is not None
+            assert Path(output).exists()
 
     def test_logging(self, setup_test_files, caplog, file_discoverer):
         """Test that logging works correctly."""

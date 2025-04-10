@@ -196,13 +196,15 @@ class HeicConvert:
             # Get output path for JPG
             output_path = self._get_output_path(heic_file, ".jpg")
             
-            heic_image = self._get_image_and_resize(heic_file, args)
+            PIL_image = self._get_image_and_resize(heic_file, args)
+            if not PIL_image:
+                raise ValueError("Failed to load image for conversion")
                        
             # Get and handle EXIF data
-            exif_info = self._handle_exif_data(heic_image, heic_image.size)
+            exif_info = self._handle_exif_data(PIL_image, PIL_image.size)
             
             # Save the image
-            heic_image.save(output_path, format="JPEG", quality=self.jpg_quality)
+            PIL_image.save(output_path, format="JPEG", quality=self.jpg_quality)
             
             # Insert EXIF data after saving
             if exif_info['exif_bytes']:
@@ -226,12 +228,14 @@ class HeicConvert:
             output_path = self._get_output_path(heic_file, ".png")
             self.logger.debug(f"Converting {heic_file} to PNG")
             
-            heic_image = self._get_image_and_resize(heic_file, args)
+            PIL_image = self._get_image_and_resize(heic_file, args)
+            if not PIL_image:
+                raise ValueError("Failed to load image for conversion")
             
             # Get and handle EXIF data (just like in JPG conversion)
-            exif_info = self._handle_exif_data(heic_image, heic_image.size)
+            exif_info = self._handle_exif_data(PIL_image, PIL_image.size)
             
-            heic_image.save(output_path, format="PNG", compress_level=self.png_compression)
+            PIL_image.save(output_path, format="PNG", compress_level=self.png_compression)
             
             # Add EXIF data to PNG using PngImagePlugin
             if exif_info['exif_bytes']:
@@ -261,20 +265,19 @@ class HeicConvert:
             output_path = self._get_output_path(heic_file, ".heic")
             self.logger.debug(f"Converting {heic_file} to HEIC")
             
-            heic_image = self._get_image_and_resize(heic_file, args)
-                        
-            # Get output path
-            output_path = self._get_output_path(Path(heic_image), '.heic')
+            PIL_image = self._get_image_and_resize(heic_file, args)
+            if not PIL_image:
+                raise ValueError("Failed to load image for conversion")
+                                    
+            heif = pillow_heif.from_pillow(PIL_image)
+            heif.save(str(output_path), quality=self.heic_quality)  
             
-            heif = pillow_heif.from_pillow(heic_image)
-            heif.save(output_path, quality=self.heic_quality)  
-            
-            self._log_conversion(heic_image, output_path)
+            self._log_conversion(heic_file, output_path)
             
             return output_path
         
         except FileExistsError:
             return None
         except Exception as e:
-            self.logger.error(f"Error converting {heic_image} to HEIC: {str(e)}")
+            self.logger.error(f"Error converting {heic_file} to HEIC: {str(e)}")
             return None
