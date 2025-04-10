@@ -51,7 +51,7 @@ class HEICConverterGUI:
         if getattr(sys, 'frozen', False) and hasattr(sys, '_MEIPASS'):
             # Running as compiled executable
             base_path = sys._MEIPASS
-            resources_dir = Path(base_path / "resources")
+            resources_dir = Path(base_path) / "resources"
         else:
             # Running as script
             resources_dir = Path(__file__).absolute().parent.parent / "resources"
@@ -387,6 +387,15 @@ class HEICConverterGUI:
         
         if not Path(source_folder).is_dir():
             messagebox.showerror("Error", "Source folder does not exist")
+            return
+        
+        output_folder = self.output_var.get()
+        if not output_folder:
+            messagebox.showerror("Error", "Please select an output folder")
+            return
+
+        if not Path(output_folder).is_dir():
+            messagebox.showerror("Error", "Output folder does not exist")
             return
         
         # Build args object with current settings
