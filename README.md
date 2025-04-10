@@ -31,7 +31,7 @@ The GUI provides an intuitive interface for converting HEIC images without using
    - Click **Browse** next to "Output Folder" to select where converted files will be saved (optional; defaults to a subfolder named after the chosen format).
 
 3. **Choose Conversion Settings**:
-   - Select the desired output format (JPG, PNG, HEIC, or Both). Both means JPG and PNG
+   - Select the desired output format (JPG, PNG, HEIC).
    - Adjust JPG quality, PNG compression, and HEIC quality settings as needed.
    - Choose how to handle existing files (rename, overwrite, or fail).
    - Enable "Search subdirectories recursively" to process nested folders.
@@ -53,7 +53,7 @@ heic-convert [OPTIONS]
 Options:
 - `--folder`, `-f`: Folder path containing HEIC files (required)
 - `--output`, `-o`: Output folder for converted images (optional)
-- `--format`, `-t`: Target format: png, jpg, heic, or both (both emits png and jpg) (default: jpg)
+- `--format`, `-t`: Target format: png, jpg, heic (default: jpg)
 - `--jpg-quality`, `-q`: JPEG quality (1-100, default: 90)
 - `--png-compression`: PNG compression level (0-9, default: 6)
 - `--existing`, `-e`: How to handle existing files: rename (add number), overwrite, or fail (default: fail)
@@ -67,9 +67,6 @@ Options:
 ```
 # Convert all HEIC files in a folder to JPG
 heic-convert --folder "c:\path\to\heics"
-
-# Convert to both formats with 80% JPG quality
-heic-convert --folder "c:\path\to\heics" --format both --jpg-quality 80
 
 # Resize images to 50% of original size
 heic-convert --folder "c:\path\to\heics" --resize 50
@@ -160,11 +157,6 @@ python -m src.main --folder "C:\Users\Photos\iPhone"
 Convert all HEIC files in a folder and its subfolders to JPG:
 ```bash
 python -m src.main --folder "C:\Users\Photos" --recursive
-```
-
-Convert all HEIC files in a folder to both PNG and JPG:
-```bash
-python -m src.main --folder "C:\Users\Photos\iPhone" --format both
 ```
 
 Convert to JPG only with 85% quality:
